@@ -163,6 +163,20 @@ Spectral Routing operates on top of the BVH traversal infrastructure described i
 
 The success of Snell's law for routing is not merely metaphorical. The mathematical structure of context-dependent routing (selecting different outputs from the same node based on an auxiliary input) maps directly onto refraction: the refractive index is the context-dependent function, the angle is the routing decision, and Snell's law provides a smooth, differentiable mapping between them.
 
+### Why Not a Context-Conditioned MLP?
+
+A natural question is whether the optical framework provides value beyond a standard context-conditioned MLP (i.e., `output = MLP(token, context)`). We argue it does, for four reasons:
+
+1. **Emergent rejection via Total Internal Reflection.** When Snell's discriminant becomes negative, the ray reflects -- the model automatically refuses to route through an incompatible node. A learned MLP must discover rejection boundaries from data; Snell's law provides them from geometry. TIR contributes +3.1 pp (Table 1) without any learned rejection parameters.
+
+2. **Geometric regularization.** Snell's law conserves ray energy and satisfies reversibility (a ray refracting from A to B follows the same path from B to A). These physical constraints reduce the effective hypothesis space compared to an unconstrained MLP, acting as an implicit regularizer. With only k=256 spectral dimensions and 4 bands, we achieve 98.4% accuracy -- an MLP with equivalent parameter count would require explicit regularization to avoid overfitting.
+
+3. **Compositionality by construction.** Multi-band chromatic aberration decomposes naturally: each band refracts independently, and results aggregate via voting. This compositional structure is built into the physics, not learned. An MLP would need to discover band-like decomposition from data.
+
+4. **Computational efficiency.** Snell refraction requires 3 trigonometric operations per node. A 2-layer MLP with hidden dimension h=64 requires 2 x 64 x 256 = 32K multiply-accumulate operations -- roughly 100x more FLOPs for equivalent expressiveness. Our measured overhead is < 0.12% of BVH traversal.
+
+The optical framework is not merely a metaphor applied post-hoc: it provides inductive biases (energy conservation, reversibility, domain rejection) that are mathematically appropriate for context-dependent routing and that a generic MLP lacks.
+
 ### Comparison to Attention-Based Disambiguation
 
 Standard transformer attention resolves polysemy over multiple layers by contextualizing hidden states. Our approach resolves it at the routing level in a single step, before the expert FFN processes the token. The 98.4% accuracy with < 0.12% overhead demonstrates this is a highly efficient mechanism.
