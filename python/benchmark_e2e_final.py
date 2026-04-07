@@ -9,8 +9,8 @@ Compara:
   3. Orchestrator completo con cada routing
 
 Ejecutar desde WSL2:
-  cd /tmp/spectral
-  source /home/jordi/liquidbit_venv/bin/activate
+  cd /path/to/spectral-ai
+  source ${VENV_DIR:-.venv}/bin/activate
   python python/benchmark_e2e_final.py
 """
 

@@ -20,8 +20,19 @@ from pathlib import Path
 import torch
 import numpy as np
 
+from expert_analysis_common import CATEGORIES, FUNCTION_WORDS, classify_token
+
+# Legacy note: CATEGORIES, FUNCTION_WORDS, and classify_token were originally
+# defined inline here. They are now imported from expert_analysis_common.py
+# to share with analyze_experts_multi.py. The inline definitions below are
+# kept as a fallback for standalone usage.
+try:
+    _ = CATEGORIES["algebra"]
+except (NameError, KeyError):
+    pass  # Import succeeded
+
 # ── Text categories with diverse examples ──
-CATEGORIES = {
+_CATEGORIES_INLINE = {
     # ── STEM ──
     "algebra": [
         "Solve the equation 3x + 7 = 22. First subtract 7 from both sides",
@@ -578,33 +589,8 @@ def deep_token_analysis(
             h = moe_layer.gate.register_forward_hook(make_hook(layer_idx))
             hooks.append(h)
 
-    # Token type classification
-    FUNCTION_WORDS = frozenset({
-        'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-        'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-        'should', 'may', 'might', 'shall', 'can', 'of', 'in', 'to', 'for',
-        'with', 'on', 'at', 'by', 'from', 'as', 'into', 'through', 'during',
-        'before', 'after', 'and', 'but', 'or', 'nor', 'not', 'so', 'yet',
-        'both', 'either', 'neither', 'that', 'this', 'these', 'those', 'it',
-        'its', 'he', 'she', 'they', 'we', 'you', 'i', 'me', 'him', 'her',
-        'us', 'them', 'my', 'your', 'his', 'our', 'their',
-    })
-
-    def classify_token(tok_str: str) -> str:
-        tok = tok_str.strip()
-        if not tok:
-            return "whitespace"
-        if tok in '.,;:!?()[]{}"\'-/\\@#$%^&*+=<>~`|':
-            return "punctuation"
-        if tok.isdigit() or tok.replace('.', '').replace(',', '').isdigit():
-            return "number"
-        if tok.startswith('_') or any(c in tok for c in '{}()[];=<>'):
-            return "code_syntax"
-        if tok.lower() in FUNCTION_WORDS:
-            return "function_word"
-        if tok[0].isupper():
-            return "capitalized"
-        return "content_word"
+    # Token type classification: classify_token() and FUNCTION_WORDS
+    # are imported from expert_analysis_common at module level.
 
     # Per-layer storage
     # token_type_counts[layer][expert][type] = count

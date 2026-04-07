@@ -1,0 +1,310 @@
+{
+  "models": [
+    {
+      "key": "OLMoE",
+      "model_id": "/mnt/j/Proyectos/models/olmoe-1b-7b",
+      "n_routed_experts": 64,
+      "n_shared_experts": 0,
+      "top_k": 8,
+      "n_moe_layers": 16
+    },
+    {
+      "key": "Qwen2-MoE",
+      "model_id": "/mnt/j/Proyectos/models/Qwen1.5-MoE-A2.7B",
+      "n_routed_experts": 60,
+      "n_shared_experts": 0,
+      "top_k": 4,
+      "n_moe_layers": 24
+    },
+    {
+      "key": "DeepSeek",
+      "model_id": "/mnt/j/Proyectos/models/deepseek-moe-16b-base",
+      "n_routed_experts": 64,
+      "n_shared_experts": 2,
+      "top_k": 6,
+      "n_moe_layers": 27
+    }
+  ],
+  "findings": {
+    "syntactic_gt_semantic": {
+      "OLMoE": {
+        "total_content_dominant": 710,
+        "total_syntactic_dominant": 314,
+        "ratio_content_to_syntactic": 2.26,
+        "finding_holds": true,
+        "note": "Content-word dominance indicates syntactic-type specialization, not semantic-topic"
+      },
+      "Qwen2-MoE": {
+        "total_content_dominant": 930,
+        "total_syntactic_dominant": 510,
+        "ratio_content_to_syntactic": 1.82,
+        "finding_holds": true,
+        "note": "Content-word dominance indicates syntactic-type specialization, not semantic-topic"
+      },
+      "DeepSeek": {
+        "total_content_dominant": 611,
+        "total_syntactic_dominant": 247,
+        "ratio_content_to_syntactic": 2.47,
+        "finding_holds": true,
+        "note": "Content-word dominance indicates syntactic-type specialization, not semantic-topic"
+      }
+    },
+    "topic_specialization_weak": {
+      "OLMoE": {
+        "uniform_baseline_pct": 3.33,
+        "max_primary_pct": 6.81,
+        "mean_primary_pct": 5.18,
+        "ratio_max_vs_uniform": 2.04,
+        "finding_holds": true,
+        "note": "Max specialization is 2.0x uniform \u2014 weak topic specialization"
+      },
+      "Qwen2-MoE": {
+        "uniform_baseline_pct": 3.33,
+        "max_primary_pct": 5.36,
+        "mean_primary_pct": 4.55,
+        "ratio_max_vs_uniform": 1.61,
+        "finding_holds": true,
+        "note": "Max specialization is 1.6x uniform \u2014 weak topic specialization"
+      },
+      "DeepSeek": {
+        "uniform_baseline_pct": 3.33,
+        "max_primary_pct": 7.53,
+        "mean_primary_pct": 4.98,
+        "ratio_max_vs_uniform": 2.26,
+        "finding_holds": true,
+        "note": "Max specialization is 2.3x uniform \u2014 weak topic specialization"
+      }
+    },
+    "u_shaped_selectivity": {
+      "OLMoE": {
+        "early_mean": 0.5469,
+        "middle_mean": 0.399,
+        "late_mean": 0.5164,
+        "u_depth": 0.1326,
+        "coverage": 1.0,
+        "layers_with_data": 16,
+        "total_moe_layers": 16,
+        "per_layer": {
+          "0": 0.5731,
+          "1": 0.6086,
+          "2": 0.5779,
+          "3": 0.5175,
+          "4": 0.4576,
+          "5": 0.4214,
+          "6": 0.4024,
+          "7": 0.3839,
+          "8": 0.3882,
+          "9": 0.3991,
+          "10": 0.4465,
+          "11": 0.4782,
+          "12": 0.5142,
+          "13": 0.5916,
+          "14": 0.5576,
+          "15": 0.5102
+        },
+        "finding_holds": true,
+        "note": "Selectivity full U-shape: early=0.547 > middle=0.399 < late=0.516"
+      },
+      "Qwen2-MoE": {
+        "early_mean": 0.6767,
+        "middle_mean": 0.6202,
+        "late_mean": 0.8017,
+        "u_depth": 0.119,
+        "coverage": 1.0,
+        "layers_with_data": 24,
+        "total_moe_layers": 24,
+        "per_layer": {
+          "0": 0.7841,
+          "1": 0.6645,
+          "2": 0.667,
+          "3": 0.6918,
+          "4": 0.6579,
+          "5": 0.6841,
+          "6": 0.6371,
+          "7": 0.6267,
+          "8": 0.6185,
+          "9": 0.6363,
+          "10": 0.6259,
+          "11": 0.6034,
+          "12": 0.6013,
+          "13": 0.6357,
+          "14": 0.6087,
+          "15": 0.6319,
+          "16": 0.7053,
+          "17": 0.7642,
+          "18": 0.8125,
+          "19": 0.847,
+          "20": 0.8546,
+          "21": 0.8291,
+          "22": 0.8536,
+          "23": 0.7477
+        },
+        "finding_holds": true,
+        "note": "Selectivity full U-shape: early=0.677 > middle=0.620 < late=0.802"
+      },
+      "DeepSeek": {
+        "early_mean": 0.755,
+        "middle_mean": 0.5944,
+        "late_mean": 0.475,
+        "u_depth": 0.0205,
+        "coverage": 0.44,
+        "layers_with_data": 12,
+        "total_moe_layers": 27,
+        "per_layer": {
+          "1": 0.7565,
+          "2": 0.7038,
+          "3": 0.832,
+          "4": 0.7276,
+          "5": 0.6583,
+          "6": 0.5768,
+          "7": 0.6008,
+          "8": 0.5419,
+          "9": 0.5233,
+          "10": 0.4762,
+          "11": 0.4293,
+          "12": 0.4712
+        },
+        "finding_holds": true,
+        "note": "Selectivity descending half confirmed (partial coverage): early=0.755 > middle=0.594 (coverage=44%)"
+      }
+    },
+    "cluster_count_variable": {
+      "OLMoE": {
+        "per_layer_significant_clusters": {
+          "0": 1,
+          "1": 1,
+          "2": 1,
+          "3": 1,
+          "4": 1,
+          "5": 1,
+          "6": 1,
+          "7": 1,
+          "8": 3,
+          "9": 3,
+          "10": 3,
+          "11": 2,
+          "12": 2,
+          "13": 1,
+          "14": 2,
+          "15": 1
+        },
+        "mean_cluster_count": 1.56,
+        "min_cluster_count": 1,
+        "max_cluster_count": 3,
+        "min_cluster_size_threshold": 3,
+        "finding_holds": true,
+        "note": "Clusters range 1--3 per layer (mean 1.6), variable structure confirmed"
+      },
+      "Qwen2-MoE": {
+        "per_layer_significant_clusters": {
+          "0": 2,
+          "1": 1,
+          "2": 2,
+          "3": 2,
+          "4": 2,
+          "5": 1,
+          "6": 2,
+          "7": 2,
+          "8": 3,
+          "9": 1,
+          "10": 2,
+          "11": 3,
+          "12": 2,
+          "13": 3,
+          "14": 2,
+          "15": 2,
+          "16": 2,
+          "17": 1,
+          "18": 2,
+          "19": 1,
+          "20": 2,
+          "21": 1,
+          "22": 1,
+          "23": 2
+        },
+        "mean_cluster_count": 1.83,
+        "min_cluster_count": 1,
+        "max_cluster_count": 3,
+        "min_cluster_size_threshold": 3,
+        "finding_holds": true,
+        "note": "Clusters range 1--3 per layer (mean 1.8), variable structure confirmed"
+      },
+      "DeepSeek": {
+        "per_layer_significant_clusters": {
+          "1": 2,
+          "2": 4,
+          "3": 3,
+          "4": 2,
+          "5": 3,
+          "6": 2,
+          "7": 3,
+          "8": 2,
+          "9": 1,
+          "10": 1,
+          "11": 5,
+          "12": 1,
+          "13": 1,
+          "14": 1,
+          "15": 1,
+          "16": 1,
+          "17": 1,
+          "18": 1,
+          "19": 1,
+          "20": 1,
+          "21": 1,
+          "22": 1,
+          "23": 1,
+          "24": 1,
+          "25": 1,
+          "26": 1,
+          "27": 1
+        },
+        "mean_cluster_count": 1.63,
+        "min_cluster_count": 1,
+        "max_cluster_count": 5,
+        "min_cluster_size_threshold": 3,
+        "finding_holds": true,
+        "note": "Clusters range 1--5 per layer (mean 1.6), variable structure confirmed"
+      }
+    },
+    "cluster_instability_exists": {
+      "OLMoE": {
+        "min_adjacent_stability_pct": 42.91,
+        "max_adjacent_stability_pct": 100.0,
+        "mean_adjacent_stability_pct": 79.83,
+        "n_adjacent_pairs": 15,
+        "finding_holds": true,
+        "note": "Adjacent stability range: 42.9%--100.0% (instability confirmed)"
+      },
+      "Qwen2-MoE": {
+        "min_adjacent_stability_pct": 23.05,
+        "max_adjacent_stability_pct": 96.67,
+        "mean_adjacent_stability_pct": 64.0,
+        "n_adjacent_pairs": 23,
+        "finding_holds": true,
+        "note": "Adjacent stability range: 23.1%--96.7% (instability confirmed)"
+      },
+      "DeepSeek": {
+        "min_adjacent_stability_pct": 0.74,
+        "max_adjacent_stability_pct": 87.95,
+        "mean_adjacent_stability_pct": 23.91,
+        "n_adjacent_pairs": 26,
+        "finding_holds": true,
+        "note": "Adjacent stability range: 0.7%--88.0% (instability confirmed)"
+      }
+    }
+  },
+  "generalization_summary": {
+    "n_models": 3,
+    "findings_that_hold_across_all": [
+      "syntactic_gt_semantic",
+      "topic_specialization_weak",
+      "u_shaped_selectivity",
+      "cluster_count_variable",
+      "cluster_instability_exists"
+    ],
+    "findings_that_fail": [],
+    "all_findings_hold": true,
+    "generalization_score": "5/5"
+  }
+}

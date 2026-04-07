@@ -212,7 +212,7 @@ Three preprints available on Zenodo:
 |---|---|
 | SpectralAI: O(N log N) Hardware-Accelerated Expert Routing | RT Core attention + Inception Engine |
 | Spectral Routing: Context-Dependent Expert Selection | Snell's law, polysemy, TIR |
-| Expert Specialization in MoE Language Models | Syntactic roles, U-shaped selectivity |
+| Expert Specialization in MoE Language Models | Multi-model analysis: syntactic roles, U-shaped selectivity (OLMoE + Qwen) |
 
 ---
 
