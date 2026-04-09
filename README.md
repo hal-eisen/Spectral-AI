@@ -104,6 +104,22 @@ Title	DOI
 SpectralAI: O(N log N) Hardware-Accelerated Expert Routing via RT Core BVH Traversal	10.5281/zenodo.19457288
 Expert Specialization in MoE Language Models: Syntactic Roles Dominate Semantic Topics	10.5281/zenodo.19457411
 Spectral Routing: Context-Dependent Expert Selection via Optical Refraction	10.5281/zenodo.19457473
+
+## Citation
+
+If you use this work or the Spectral-AI framework in your research, please cite the main paper:
+
+```bibtex
+@misc{silvestre2026spectralai,
+  author = {Silvestre Lopez, Jordi},
+  title = {Spectral-AI: O(N log N) Hardware-Accelerated Expert Routing via RT Core BVH Traversal},
+  year = {2026},
+  publisher = {Zenodo},
+  doi = {10.5281/zenodo.19457288},
+  url = {[https://github.com/JordiSilvestre/Spectral-AI](https://github.com/JordiSilvestre/Spectral-AI)}
+}
+
+
 License
 CC-BY 4.0.
 
