@@ -184,7 +184,7 @@ spectral-ai/
 │       ├── bvh_torch_ext.cu    # PyTorch extension (89× speedup)
 │       └── ternary_torch_ext.cu# POPCOUNT ternary extension
 │
-├── tests/                  # 194 passing, 14 skipped (OptiX/WSL)
+├── tests/                  # 195 passing, 14 skipped (OptiX/WSL)
 ├── checkpoints/
 │   └── olmoe_best/         # Best checkpoints for all 16 layers
 ├── presentation/           # Animated HTML presentation
@@ -207,14 +207,14 @@ spectral-ai/
 ## Test Suite
 
 ```
-194 passed, 1 failed (gradient edge case), 14 skipped (OptiX/WSL)
+195 passed, 0 failed, 14 skipped (OptiX/WSL)
 ```
 
 | Suite | Tests | Status |
 |---|---|---|
 | BVH Router core | 79 | ✅ All passing |
 | Gate wrapper + calibration | 48 | ✅ All passing |
-| Enhanced BVH + spectral | 46/47 | ✅ 1 gradient edge case |
+| Enhanced BVH + spectral | 47/47 | ✅ All passing |
 | Polysemy benchmark | 21 | ✅ All passing |
 | OptiX integration | 14 | ⏭️ Skipped (requires Windows native) |
 
