@@ -4,7 +4,7 @@
 Independent Researcher
 
 **Date:** 2026-04-07
-**DOI:** [To be assigned by Zenodo]
+**DOI:** [10.5281/zenodo.19457411](https://doi.org/10.5281/zenodo.19457411)
 **License:** CC-BY 4.0
 
 ---

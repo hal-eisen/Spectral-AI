@@ -1,10 +1,10 @@
-# SpectralAI: O(N log N) Hardware-Accelerated Expert Routing via RT Core BVH Traversal and Nested Instance Acceleration Structures
+# SpectralAI: O(log N) Hardware-Accelerated Expert Routing via RT Core BVH Traversal and Nested Instance Acceleration Structures
 
 **Jordi Silvestre Lopez**
 Independent Researcher
 
 **Date:** 2026-04-02
-**DOI:** [To be assigned by Zenodo]
+**DOI:** [10.5281/zenodo.19457288](https://doi.org/10.5281/zenodo.19457288)
 **License:** CC-BY 4.0
 
 ---
@@ -261,7 +261,7 @@ python3 eval_hellaswag.py --model-dir /path/to/olmoe-1b-7b --max-samples 2000
 python3 sweep_prefilter.py --model-dir /path/to/olmoe-1b-7b
 ```
 
-223 automated tests.
+209 automated tests (195 core + 14 OptiX RT Core integration).
 
 ---
 
