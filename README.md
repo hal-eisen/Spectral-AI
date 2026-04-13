@@ -89,7 +89,7 @@ Input tokens
      |
      v
 [Embedding] --> [3D Projection (PCA, 2048 → 3D)]
-     |
+     |          Branch-specific projections: 21 learned 3D spaces (issue #3)
      v
 [BVH Router] -- 4 nested 3D levels (hierarchical, not 12 independent dims)
      |          Level 1: Domains (4 clusters)
@@ -184,7 +184,7 @@ spectral-ai/
 │       ├── bvh_torch_ext.cu    # PyTorch extension (89× speedup)
 │       └── ternary_torch_ext.cu# POPCOUNT ternary extension
 │
-├── tests/                  # 195 passing, 14 skipped (OptiX/WSL)
+├── tests/                  # 209 passing, 0 skipped
 ├── checkpoints/
 │   └── olmoe_best/         # Best checkpoints for all 16 layers
 ├── presentation/           # Animated HTML presentation
@@ -207,16 +207,25 @@ spectral-ai/
 ## Test Suite
 
 ```
-195 passed, 0 failed, 14 skipped (OptiX/WSL)
+209 passed, 0 failed, 0 skipped — Windows 11 + RTX 5070 Ti (sm_120 Blackwell)
 ```
 
 | Suite | Tests | Status |
 |---|---|---|
 | BVH Router core | 79 | ✅ All passing |
 | Gate wrapper + calibration | 48 | ✅ All passing |
-| Enhanced BVH + spectral | 47/47 | ✅ All passing |
+| Enhanced BVH + spectral | 47 | ✅ All passing |
 | Polysemy benchmark | 21 | ✅ All passing |
-| OptiX integration | 14 | ⏭️ Skipped (requires Windows native) |
+| OptiX RT Core integration | 14 | ✅ All passing (Windows native) |
+
+### BranchSpecificBVHRouter vs BVHRouter (issue #3)
+
+| Metric | BVHRouter | BranchSpecific | Improvement |
+|---|---|---|---|
+| Parameters | 89,047 | 104,275 | +17% |
+| Unique experts (of 64) | 28/64 | **63/64** | **+125%** |
+| Usage entropy | 62% | **91%** | +46% |
+| Gradient signal | 0.0082 | **0.0122** | +49% |
 
 ---
 

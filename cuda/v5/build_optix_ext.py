@@ -65,12 +65,15 @@ def _detect_optix_include() -> Optional[str]:
 
 
 def _detect_ptx_paths() -> Tuple[Optional[str], Optional[str]]:
-    """Find compiled PTX shader files from cmake build."""
+    """Find compiled PTX/OptixIR shader files from cmake build."""
     search_dirs = [
         PROJECT_ROOT / "build" / "ptx",
         PROJECT_ROOT / "build" / "Release" / "ptx",
         PROJECT_ROOT / "build" / "Debug" / "ptx",
         PROJECT_ROOT / "build",
+        PROJECT_ROOT / "build_win" / "ptx",
+        PROJECT_ROOT / "build_win" / "Release" / "ptx",
+        PROJECT_ROOT / "build_win",
     ]
 
     raygen_path = None
@@ -79,7 +82,7 @@ def _detect_ptx_paths() -> Tuple[Optional[str], Optional[str]]:
     for d in search_dirs:
         if not d.exists():
             continue
-        for f in d.glob("*.ptx"):
+        for f in list(d.glob("*.ptx")) + list(d.glob("*.optixir")):
             name = f.stem.lower()
             if "raygen" in name and "router" in name:
                 raygen_path = str(f)
@@ -129,19 +132,53 @@ def build_optix_training_ext() -> bool:
     # Fix: create no-spaces symlinks in /tmp for every affected path.
 
     def _safe_path(original: str, link_name: str) -> str:
-        """If *original* has spaces, create /tmp/<link_name> -> original."""
+        """If *original* has spaces, create a no-spaces alias.
+
+        On Windows: use directory junctions (mklink /J) — no admin required.
+        On Linux: use symlinks.
+        """
         if " " not in original:
             return original
-        safe = f"/tmp/{link_name}"
-        try:
-            if os.path.islink(safe):
-                os.unlink(safe)
-            os.symlink(original, safe)
-            print(f"  Symlinked: {safe} -> {original}")
-            return safe
-        except OSError as exc:
-            print(f"  [WARNING] Cannot symlink {original}: {exc}")
-            return original
+        if sys.platform == "win32":
+            base = os.path.join(os.environ.get("TEMP", "C:\\Temp"), "spectral_build")
+            os.makedirs(base, exist_ok=True)
+            safe = os.path.join(base, link_name)
+            try:
+                if os.path.exists(safe):
+                    # Remove existing junction/dir
+                    import subprocess
+                    subprocess.run(["cmd", "/c", "rmdir", safe], capture_output=True)
+                if os.path.isdir(original):
+                    import subprocess
+                    result = subprocess.run(
+                        ["cmd", "/c", "mklink", "/J", safe, original],
+                        capture_output=True, text=True
+                    )
+                    if result.returncode == 0:
+                        print(f"  Junction: {safe} -> {original}")
+                        return safe
+                    else:
+                        print(f"  [WARNING] mklink /J failed: {result.stderr.strip()}")
+                        return original
+                else:
+                    # For files, just copy to safe path
+                    shutil.copy2(original, safe)
+                    print(f"  Copied: {safe} <- {original}")
+                    return safe
+            except OSError as exc:
+                print(f"  [WARNING] Cannot create junction for {original}: {exc}")
+                return original
+        else:
+            safe = f"/tmp/{link_name}"
+            try:
+                if os.path.islink(safe):
+                    os.unlink(safe)
+                os.symlink(original, safe)
+                print(f"  Symlinked: {safe} -> {original}")
+                return safe
+            except OSError as exc:
+                print(f"  [WARNING] Cannot symlink {original}: {exc}")
+                return original
 
     # Actual symlink calls happen later, after include_dir is defined (line ~183).
     # For now, just apply to optix_inc which is already available:
