@@ -1,6 +1,6 @@
 # Why
 
-I (hal-eisen) don't have a 5070 but rather a 4070 Ti Super. I'd like to accomplish X things
+I (hal-eisen) don't have a 5070 but rather a 4070 Ti Super. I'd like to accomplish 4 things
 1. Enable support for my particular card
 2. Enable support for other MoE models, specifically Qwen 3.6 35b a3b and Gemma 4 26b a4b
 3. Learn more about how LLMs really work under the hood
