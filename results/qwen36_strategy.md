@@ -16,9 +16,10 @@ So the dequant-from-GGUF approach (added cost: write `qwen36_extract.py` against
 
 ## What we'll do
 
-1. Download `Qwen/Qwen3.6-35B-A3B` safetensors (26 shards, ~52GB) once disk-strategy issue Spectral-AI-6la is resolved.
-2. Load with `Qwen3_5MoeForCausalLM` (text-only — multimodal vision is out of scope per user decision).
+1. Mount a remote host (via sshfs) carrying `Qwen/Qwen3.6-35B-A3B` safetensors (26 shards, ~52GB). **No local download**; disk issue Spectral-AI-6la resolved by this architecture choice.
+2. Load with `Qwen3_5MoeForCausalLM` (text-only — multimodal vision is out of scope per user decision). Stock `transformers 5.5.0`, no `trust_remote_code`.
 3. Use the existing extraction pattern from `python/gemma4_extract.py` adapted for the qwen3_5_moe block tree.
+4. sshfs read bandwidth will affect one-time extraction wallclock — budget for it in P3-3.
 
 ## Architecture facts learned (relevant to BVH router config)
 
