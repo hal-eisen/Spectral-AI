@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "Spectral_AI",
+  "project_id": "627cbea0-a86b-4386-bb4a-e26f461bff0b"
+}

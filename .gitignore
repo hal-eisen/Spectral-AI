@@ -102,3 +102,16 @@ cuda/v5/build_ternary/
 eval_hellaswag_bvh_results.json
 eval_hellaswag_hybrid16_results.json
 vendor/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+
+# Downloaded eval corpora (fetched by scripts/fetch_wikitext2.sh)
+data/eval/
+# Mid-run CSVs (debug outputs)
+results/*_rerun.csv
+# Extracted hidden states (regenerate via extract_*.py)
+data/gemma4_hiddens/
+data/qwen36_hiddens/

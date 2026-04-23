@@ -1,0 +1,20 @@
+=== olmoe-Q4_K_M ===
+system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CUDA : ARCHS = 890 | USE_GRAPHS = 1 | PEER_MAX_BATCH_SIZE = 128 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+Final estimate: PPL = 8.0532 +/- 0.05298
+llama_perf_context_print: prompt eval time =   18070.19 ms / 285696 tokens (    0.06 ms per token, 15810.35 tokens per second)
+
+=== olmoe-Q6_K ===
+system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CUDA : ARCHS = 890 | USE_GRAPHS = 1 | PEER_MAX_BATCH_SIZE = 128 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+Final estimate: PPL = 7.8802 +/- 0.05176
+llama_perf_context_print: prompt eval time =   20061.71 ms / 285696 tokens (    0.07 ms per token, 14240.86 tokens per second)
+
+=== olmoe-Q8_0 ===
+system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CUDA : ARCHS = 890 | USE_GRAPHS = 1 | PEER_MAX_BATCH_SIZE = 128 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+Final estimate: PPL = 7.8600 +/- 0.05155
+llama_perf_context_print: prompt eval time =   17711.68 ms / 285696 tokens (    0.06 ms per token, 16130.37 tokens per second)
+
+=== olmoe-f16 ===
+system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CUDA : ARCHS = 890 | USE_GRAPHS = 1 | PEER_MAX_BATCH_SIZE = 128 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+Final estimate: PPL = 7.8582 +/- 0.05154
+llama_perf_context_print: prompt eval time =   50438.87 ms / 285696 tokens (    0.18 ms per token,  5664.20 tokens per second)
+

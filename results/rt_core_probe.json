@@ -1,0 +1,45 @@
+{
+  "tests": {
+    "libnvoptix_load": {
+      "status": "pass",
+      "path": "libnvoptix.so.1",
+      "has_query_table": true
+    },
+    "optix_sdk_headers": {
+      "status": "fail",
+      "error": "optix.h not found in any standard location or $OptiX_INSTALL_DIR"
+    },
+    "ptx_artifacts": {
+      "status": "fail",
+      "error": "router raygen/hitgroup PTX not found (CMake build not run)"
+    },
+    "optix_training_ext_import": {
+      "status": "fail",
+      "error": "No module named 'optix_training_ext'"
+    },
+    "optix_e2e": {
+      "status": "skip",
+      "error": "prerequisites not met"
+    },
+    "cuda_kernel_bvh": {
+      "status": "pass",
+      "us_per_batch": 19.13,
+      "all_batches_us": {
+        "batch_256": 19.13,
+        "batch_1024": 22.98
+      },
+      "n_experts": 64,
+      "source": "compiled bvh_router_ext (cuda/v5/bvh_torch_ext.cu)"
+    },
+    "pytorch_gate_baseline": {
+      "status": "pass",
+      "us_per_batch": 50.09,
+      "batch": 256
+    }
+  },
+  "recommended_backend": "cuda_kernel_bvh",
+  "notes": [
+    "libnvoptix runtime: OK. OptiX SDK headers: NOT INSTALLED. PTX artifacts: missing (run CMake build). Extension loaded: False.",
+    "To enable OptiX RT-core path: download NVIDIA OptiX SDK 9.1+ from https://developer.nvidia.com/optix/downloads and export OptiX_INSTALL_DIR=/path/to/SDK before running CMake."
+  ]
+}

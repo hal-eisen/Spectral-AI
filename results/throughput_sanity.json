@@ -1,0 +1,58 @@
+[
+  {
+    "label": "tinylm_prefill_b1_s128",
+    "mode": "prefill",
+    "tok_s_median": 281787.77,
+    "tok_s_mean": 281440.85,
+    "tok_s_stdev": 2516.09,
+    "latency_ms": 0.45,
+    "batch_size": 1,
+    "seq_len": 128,
+    "n_iters": 10,
+    "device": "cuda",
+    "dtype": "fp32",
+    "notes": ""
+  },
+  {
+    "label": "tinylm_prefill_b4_s128",
+    "mode": "prefill",
+    "tok_s_median": 372304.06,
+    "tok_s_mean": 372113.82,
+    "tok_s_stdev": 471.34,
+    "latency_ms": 1.38,
+    "batch_size": 4,
+    "seq_len": 128,
+    "n_iters": 10,
+    "device": "cuda",
+    "dtype": "fp32",
+    "notes": ""
+  },
+  {
+    "label": "tinylm_prefill_b1_s512",
+    "mode": "prefill",
+    "tok_s_median": 370306.74,
+    "tok_s_mean": 363826.67,
+    "tok_s_stdev": 11575.75,
+    "latency_ms": 1.38,
+    "batch_size": 1,
+    "seq_len": 512,
+    "n_iters": 10,
+    "device": "cuda",
+    "dtype": "fp32",
+    "notes": ""
+  },
+  {
+    "label": "tinylm_prefill_b4_s512",
+    "mode": "prefill",
+    "tok_s_median": 379336.13,
+    "tok_s_mean": 375269.09,
+    "tok_s_stdev": 8982.46,
+    "latency_ms": 5.4,
+    "batch_size": 4,
+    "seq_len": 512,
+    "n_iters": 10,
+    "device": "cuda",
+    "dtype": "fp32",
+    "notes": ""
+  }
+]

@@ -1,0 +1,5 @@
+model,quant,size_gb,prefill_pp512_tok_s,prefill_stdev,generate_tg128_tok_s,generate_stdev,ppl_wikitext2_c512,ppl_pm,prefill_tok_s_ppl,notes
+olmoe,Q4_K_M,3.92,14675.59,67.12,524.43,3.44,8.0532,0.0530,15810.35,"llama.cpp e365e658f CUDA sm_89 RTX 4070 Ti Super; llama-bench -p 512 -n 128 -ngl 99 -r 3; llama-perplexity -c 512 -ngl 99 on WikiText-2 test (2891 docs)"
+olmoe,Q6_K,5.29,13196.56,118.25,437.60,2.69,7.8802,0.0518,14240.86,same env as above
+olmoe,Q8_0,6.85,14935.72,70.96,365.29,1.55,7.8600,0.0516,16130.37,same env as above
+olmoe,F16,12.89,6619.94,31.48,211.90,0.16,7.8582,0.0515,5664.20,same env as above
