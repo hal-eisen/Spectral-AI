@@ -17,7 +17,9 @@
 #
 # It does NOT download anything. Point it at already-available GGUFs.
 
-set -euo pipefail
+# Intentionally NOT using `set -e`: grep exits 1 on no-match, which we don't
+# want to abort the whole script. We handle errors per-command.
+set -uo pipefail
 
 if [[ $# -lt 3 ]]; then
     echo "Usage: $0 <model_name> <gguf_dir> <out_csv>" >&2
@@ -119,12 +121,16 @@ for gguf in "${GGUFS[@]}"; do
         chunks_flag="--chunks $PPL_CHUNKS"
     fi
 
-    ppl_out=$("$LLAMA_PPL" -m "$gguf" -f "$WIKITEXT_PATH" -c "$PPL_CTX" -b "$PPL_CTX" -ngl "$NGL" -t 8 $chunks_flag 2>&1 || true)
+    ppl_out=$("$LLAMA_PPL" -m "$gguf" -f "$WIKITEXT_PATH" -c "$PPL_CTX" -b "$PPL_CTX" -ngl "$NGL" -t 8 $chunks_flag 2>&1)
+    ppl_rc=$?
+    if [[ $ppl_rc -ne 0 ]]; then
+        echo "WARN: llama-perplexity exited $ppl_rc for $gguf" >&2
+    fi
 
-    ppl=$(echo "$ppl_out" | grep -oE 'Final estimate: PPL = [0-9.]+' | awk '{print $NF}')
-    ppl_pm=$(echo "$ppl_out" | grep -oE 'Final estimate: PPL = [0-9.]+ \+/\- [0-9.]+' | awk '{print $NF}')
-    ppl_prefill_tok_s=$(echo "$ppl_out" | grep -oE 'prompt eval time =.*tokens per second' | grep -oE '[0-9.]+ tokens per second' | awk '{print $1}')
-    ppl_ntokens=$(echo "$ppl_out" | grep -oE 'prompt eval time = [0-9.]+ ms / [0-9]+ tokens' | awk '{print $(NF-1)}')
+    ppl=$(echo "$ppl_out" | grep -oE 'Final estimate: PPL = [0-9.]+' 2>/dev/null | awk '{print $NF}')
+    ppl_pm=$(echo "$ppl_out" | grep -oE 'Final estimate: PPL = [0-9.]+ \+/\- [0-9.]+' 2>/dev/null | awk '{print $NF}')
+    ppl_prefill_tok_s=$(echo "$ppl_out" | grep -oE 'prompt eval time =.*tokens per second' 2>/dev/null | grep -oE '[0-9.]+ tokens per second' 2>/dev/null | awk '{print $1}')
+    ppl_ntokens=$(echo "$ppl_out" | grep -oE 'prompt eval time = [0-9.]+ ms / [0-9]+ tokens' 2>/dev/null | awk '{print $(NF-1)}')
 
     row="$MODEL_NAME,$quant,$size_gb,${pp_avg:-NA},${pp_std:-NA},${tg_avg:-NA},${tg_std:-NA},${ppl:-NA},${ppl_pm:-NA},${ppl_prefill_tok_s:-NA},${ppl_ntokens:-NA}"
     echo "$row" | tee -a "$OUT_CSV"

@@ -1,0 +1,2 @@
+model,quant,size_gb,prefill_pp512_tok_s,prefill_stdev,generate_tg128_tok_s,generate_stdev,ppl_wikitext2_c512,ppl_pm,prefill_tok_s_ppl,n_chunks_ppl,config,notes
+Qwen3.6-35B-A3B,UD-Q4_K_S,19.45,447.32,3.63,37.30,0.05,6.4382,0.0571,384.62,300,"-ngl 99 --n-cpu-moe 40","Unsloth dynamic-quant; MoE experts offloaded to host RAM (19.5GB), attention + embeddings on GPU (2.5GB). Only 50 chunks of PPL used 5.96; 300 chunks is 6.44 — use 300 as the reference. Full Q4_K_S won't fit 16GB VRAM, ngl=32 max without cpu-moe."
