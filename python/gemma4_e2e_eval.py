@@ -123,48 +123,64 @@ class BVHRoutedRouterWrapper(nn.Module):
         return full_probs, top_k_weights, top_k_index
 
 
-def _snapshot_per_expert_scale(router: nn.Module, hidden_dim: int,
-                                num_experts: int) -> torch.Tensor:
-    """Snapshot per_expert_scale via a forward-pre hook.
+_PER_EXPERT_SCALE_CACHE: dict[str, torch.Tensor] = {}
 
-    Hook ordering: accelerate's forward_pre_hook fires first (moves params to
-    device), THEN our pre-hook fires (sees params on device), THEN forward
-    runs, THEN accelerate's forward_hook moves params back to meta.
-    Reading inside a forward_hook would be too late.
+
+def _load_all_per_expert_scale(model_dir: str, num_experts: int) -> dict[int, torch.Tensor]:
+    """Read per-layer per_expert_scale directly from safetensors.
+
+    More robust than forward-pre hooks because accelerate's offload hooks
+    are registered on Gemma4TextDecoderLayer (not Gemma4TextRouter), so
+    calling router(dummy) directly leaves the router params on meta. Going
+    through the safetensors index sidesteps that entirely.
     """
-    snap = {}
+    if model_dir in _PER_EXPERT_SCALE_CACHE:
+        return _PER_EXPERT_SCALE_CACHE[model_dir]
 
-    def grab_pre(mod, args, kwargs):
-        try:
-            pes = mod.per_expert_scale
-            if pes.device.type != "meta":
-                snap["pes"] = pes.detach().to("cpu", dtype=torch.float32, copy=True)
-        except Exception:
-            pass
+    import json, re
+    from pathlib import Path
+    from safetensors import safe_open
 
-    h = router.register_forward_pre_hook(grab_pre, with_kwargs=True)
-    try:
-        dummy = torch.zeros(1, hidden_dim, dtype=torch.bfloat16)
-        if torch.cuda.is_available():
-            dummy = dummy.to("cuda")
-        with torch.no_grad():
-            _ = router(dummy)
-    finally:
-        h.remove()
-    if "pes" not in snap:
-        # Fallback: identity scale (per_expert_scale init is ones, so this is
-        # what an unfine-tuned router would have anyway).
-        return torch.ones(num_experts, dtype=torch.float32)
-    return snap["pes"]
+    mdir = Path(model_dir)
+    idx = json.loads((mdir / "model.safetensors.index.json").read_text())
+    per_exp_keys = {k: v for k, v in idx["weight_map"].items()
+                    if "per_expert_scale" in k}
+    from collections import defaultdict
+    by_file: dict[str, list[str]] = defaultdict(list)
+    for k, f in per_exp_keys.items():
+        by_file[f].append(k)
+
+    lpat = re.compile(r"\.layers\.(\d+)\.")
+    out: dict[int, torch.Tensor] = {}
+    for file, keys in by_file.items():
+        with safe_open(mdir / file, framework="pt") as st:
+            for k in keys:
+                t = st.get_tensor(k).float()
+                m = lpat.search(k)
+                if not m:
+                    continue
+                L = int(m.group(1))
+                assert t.shape == (num_experts,), f"{k} shape {t.shape}"
+                out[L] = t.clone()
+    _PER_EXPERT_SCALE_CACHE[model_dir] = out
+    return out
 
 
-def install_adapters(model, checkpoint_dir: Path, mode: str, n_candidates: int):
-    """Replace each MoE layer's .router with BVHRoutedRouterWrapper. We
-    snapshot per_expert_scale at install time (via dummy forward) so we don't
-    depend on accelerate's offload state at eval-time forward."""
+def install_adapters(model, checkpoint_dir: Path, mode: str, n_candidates: int,
+                     model_dir: str | None = None):
+    """Replace each MoE layer's .router with BVHRoutedRouterWrapper.
+
+    per_expert_scale is read directly from the safetensors index (not from
+    the in-memory model), because accelerate's offload hooks leave router
+    params on `meta` when accessed via a direct router(...) call.
+    """
     layers = model.model.language_model.layers
-    hidden_dim = model.config.text_config.hidden_size
     n_experts = model.config.text_config.num_experts
+    # Infer model dir from config if not passed
+    if model_dir is None:
+        model_dir = model.config._name_or_path
+    per_exp_scales = _load_all_per_expert_scale(model_dir, n_experts)
+
     n_adapted = 0
     for i, layer in enumerate(layers):
         if not hasattr(layer, "router"):
@@ -177,9 +193,13 @@ def install_adapters(model, checkpoint_dir: Path, mode: str, n_candidates: int):
             torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         )
         bvh = _load_bvh_router(ckpt, target_dev)
-        per_exp_scale = _snapshot_per_expert_scale(layer.router, hidden_dim, n_experts)
+        per_exp = per_exp_scales.get(i)
+        if per_exp is None:
+            print(f"  [warn] layer {i}: per_expert_scale not in safetensors, "
+                  f"defaulting to ones", file=sys.stderr)
+            per_exp = torch.ones(n_experts, dtype=torch.float32)
         wrapper = BVHRoutedRouterWrapper(layer.router, bvh, mode, n_candidates,
-                                         per_exp_scale.to(target_dev))
+                                         per_exp.to(target_dev))
         layer.router = wrapper
         n_adapted += 1
     return n_adapted
@@ -285,7 +305,8 @@ def main():
 
     if args.checkpoint_dir is not None:
         print(f"[swap] installing BVH adapters from {args.checkpoint_dir} (mode={args.mode})")
-        n = install_adapters(model, args.checkpoint_dir, args.mode, args.n_candidates)
+        n = install_adapters(model, args.checkpoint_dir, args.mode,
+                             args.n_candidates, model_dir=args.model_dir)
         print(f"[swap] adapted {n} layers")
     else:
         print("[swap] skipped — running BASELINE (no BVH)")

@@ -110,7 +110,11 @@ def main():
     # the other values are safe.
     install_n = max(args.values)
     print(f"[swap] installing adapters (initial n_candidates={install_n})")
-    n_adapted = install_adapters(model, ckpt_dir, "hybrid", install_n)
+    if args.model == "gemma4":
+        n_adapted = install_adapters(model, ckpt_dir, "hybrid", install_n,
+                                      model_dir=model_dir)
+    else:
+        n_adapted = install_adapters(model, ckpt_dir, "hybrid", install_n)
     print(f"[swap] {n_adapted} layers adapted")
 
     results = []
