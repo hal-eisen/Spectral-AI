@@ -1,0 +1,58 @@
+[
+  {
+    "model_dir": "/home/eisen/spectralai/remote_models/Qwen/Qwen3.6-35B-A3B",
+    "checkpoint_dir": null,
+    "mode": "baseline",
+    "n_candidates": 32,
+    "eval_mode": "ppl",
+    "ppl": 7.872903029010264,
+    "max_chunks": 50,
+    "ctx": 512
+  },
+  {
+    "model_dir": "/home/eisen/spectralai/remote_models/Qwen/Qwen3.6-35B-A3B",
+    "checkpoint_dir": null,
+    "mode": "prefill",
+    "n_candidates": 32,
+    "eval_mode": "throughput",
+    "label": "qwen36_prefill_b1_s512",
+    "tok_s_median": 72.82,
+    "tok_s_mean": 72.19,
+    "tok_s_stdev": 1.24,
+    "latency_ms": 7030.93,
+    "batch_size": 1,
+    "seq_len": 512,
+    "n_iters": 5,
+    "device": "cuda",
+    "dtype": "",
+    "notes": ""
+  },
+  {
+    "model_dir": "/home/eisen/spectralai/remote_models/Qwen/Qwen3.6-35B-A3B",
+    "checkpoint_dir": "checkpoints/qwen36_distill_branch",
+    "mode": "hybrid",
+    "n_candidates": 32,
+    "eval_mode": "ppl",
+    "ppl": 8.69780592857368,
+    "max_chunks": 50,
+    "ctx": 512
+  },
+  {
+    "model_dir": "/home/eisen/spectralai/remote_models/Qwen/Qwen3.6-35B-A3B",
+    "checkpoint_dir": "checkpoints/qwen36_distill_branch",
+    "mode": "prefill",
+    "n_candidates": 32,
+    "eval_mode": "throughput",
+    "label": "qwen36_prefill_b1_s512",
+    "tok_s_median": 72.09,
+    "tok_s_mean": 72.05,
+    "tok_s_stdev": 0.18,
+    "latency_ms": 7101.98,
+    "batch_size": 1,
+    "seq_len": 512,
+    "n_iters": 5,
+    "device": "cuda",
+    "dtype": "",
+    "notes": ""
+  }
+]
