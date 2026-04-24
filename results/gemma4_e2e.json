@@ -1,0 +1,58 @@
+[
+  {
+    "model_dir": "/home/eisen/spectralai/remote_models/Google/Gemma4-26B-A4B",
+    "checkpoint_dir": null,
+    "mode": "baseline",
+    "n_candidates": 32,
+    "eval_mode": "ppl",
+    "ppl": 11.872528384333453,
+    "max_chunks": 50,
+    "ctx": 512
+  },
+  {
+    "model_dir": "/home/eisen/spectralai/remote_models/Google/Gemma4-26B-A4B",
+    "checkpoint_dir": null,
+    "mode": "prefill",
+    "n_candidates": 32,
+    "eval_mode": "throughput",
+    "label": "gemma4_prefill_b1_s512",
+    "tok_s_median": 107.19,
+    "tok_s_mean": 107.18,
+    "tok_s_stdev": 0.2,
+    "latency_ms": 4776.78,
+    "batch_size": 1,
+    "seq_len": 512,
+    "n_iters": 5,
+    "device": "cuda",
+    "dtype": "",
+    "notes": ""
+  },
+  {
+    "model_dir": "/home/eisen/spectralai/remote_models/Google/Gemma4-26B-A4B",
+    "checkpoint_dir": "checkpoints/gemma4_distill_branch",
+    "mode": "hybrid",
+    "n_candidates": 32,
+    "eval_mode": "ppl",
+    "ppl": 12.587409228862922,
+    "max_chunks": 50,
+    "ctx": 512
+  },
+  {
+    "model_dir": "/home/eisen/spectralai/remote_models/Google/Gemma4-26B-A4B",
+    "checkpoint_dir": "checkpoints/gemma4_distill_branch",
+    "mode": "prefill",
+    "n_candidates": 32,
+    "eval_mode": "throughput",
+    "label": "gemma4_prefill_b1_s512",
+    "tok_s_median": 106.06,
+    "tok_s_mean": 106.08,
+    "tok_s_stdev": 0.07,
+    "latency_ms": 4827.62,
+    "batch_size": 1,
+    "seq_len": 512,
+    "n_iters": 5,
+    "device": "cuda",
+    "dtype": "",
+    "notes": ""
+  }
+]
