@@ -85,16 +85,19 @@ def main():
     ap.add_argument("--ctx", type=int, default=512)
     ap.add_argument("--out-md", type=Path, default=None)
     ap.add_argument("--out-json", type=Path, default=None)
+    ap.add_argument("--ckpt-dir", type=str, default=None,
+                    help="Override default checkpoints/<model>_distill_branch")
     args = ap.parse_args()
 
     if args.model == "gemma4":
         from python.gemma4_e2e_eval import load_model, install_adapters
         model_dir = "/home/eisen/spectralai/remote_models/Google/Gemma4-26B-A4B"
-        ckpt_dir = Path("checkpoints/gemma4_distill_branch")
+        default_ckpt = "checkpoints/gemma4_distill_branch"
     else:
         from python.qwen36_e2e_eval import load_model, install_adapters
         model_dir = "/home/eisen/spectralai/remote_models/Qwen/Qwen3.6-35B-A3B"
-        ckpt_dir = Path("checkpoints/qwen36_distill_branch")
+        default_ckpt = "checkpoints/qwen36_distill_branch"
+    ckpt_dir = Path(args.ckpt_dir) if args.ckpt_dir else Path(default_ckpt)
 
     out_md = args.out_md or Path(f"results/{args.model}_ncand_sweep.md")
     out_json = args.out_json or Path(f"results/{args.model}_ncand_sweep.json")
