@@ -40,21 +40,32 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def _load_bvh_router(ckpt_path: Path, device: torch.device) -> nn.Module:
-    """Load a trained BranchSpecificBVHRouter from a checkpoint produced by
-    olmoe_bvh_distill.py."""
-    from python.bvh_router import BranchSpecificBVHRouter, RouterConfig
+    """Load a trained EnhancedBVHRouter from a checkpoint produced by
+    olmoe_bvh_distill.py (which currently only supports EnhancedBVHRouter
+    end-to-end; BranchSpecificBVHRouter wiring in the training loop is TBD)."""
+    from python.olmoe_bvh_distill import EnhancedBVHRouter
 
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     cfg_dict = ckpt["config"]
-    cfg = RouterConfig(
-        embed_dim=cfg_dict["input_dim"],
+    sd = ckpt["router_state_dict"]
+    spectral_mode = cfg_dict.get("spectral_mode", ckpt.get("spectral_mode", False))
+    spectral_dim = cfg_dict.get("spectral_dim", 64)
+    enc_hidden = None
+    if spectral_mode and "spectral_encoder.0.weight" in sd:
+        enc_hidden = sd["spectral_encoder.0.weight"].shape[0]
+        spectral_dim = sd["spectral_encoder.2.weight"].shape[0]
+
+    router = EnhancedBVHRouter(
+        input_dim=cfg_dict["input_dim"],
         n_level1=cfg_dict["n_level1"],
         n_level2=cfg_dict["n_level2"],
         n_level3=cfg_dict["n_level3"],
-        spectral_dim=cfg_dict.get("spectral_dim", 64),
+        feature_dim=cfg_dict.get("feature_dim", 128),
+        spectral_mode=spectral_mode,
+        spectral_dim=spectral_dim,
+        encoder_hidden=enc_hidden,
     )
-    router = BranchSpecificBVHRouter(cfg)
-    router.load_state_dict(ckpt["router_state_dict"])
+    router.load_state_dict(sd)
     router.eval()
     return router.to(device)
 
@@ -106,8 +117,8 @@ class BVHRouterAdapter(nn.Module):
             bvh_probs, _ = self.bvh(x.float())
 
         if self.mode == "pure":
-            # Use BVH probs directly
-            full_probs = F.softmax(bvh_probs, dim=-1).to(x.dtype)
+            # bvh_probs is already a normalized distribution (sums to 1)
+            full_probs = bvh_probs.to(x.dtype)
             top_k_weights, top_k_index = torch.topk(full_probs, self.top_k, dim=-1)
         elif self.mode == "hybrid":
             # BVH narrows to N candidates; original .proj scores those exactly
