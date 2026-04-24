@@ -70,58 +70,67 @@ def _load_bvh_router(ckpt_path: Path, device: torch.device) -> nn.Module:
     return router.to(device)
 
 
-def _make_bvh_forward(original_router: nn.Module, bvh: nn.Module,
-                      mode: str, n_candidates: int):
-    """Build a closure that replaces original_router.forward with BVH-routed
-    behavior. We monkey-patch instead of replacing the whole module so accelerate's
-    pre-forward hooks (which live on the original_router) still fire and move
-    its parameters from CPU/meta to the right compute device.
+class BVHRoutedRouterWrapper(nn.Module):
+    """Wraps the original Gemma4TextRouter.
+
+    Forward calls the original router (so accelerate's offload hooks fire
+    correctly to bring its params on-device), gets the full softmax probs,
+    then uses BVH to select top-k experts. In hybrid mode the original probs
+    score BVH candidates exactly; in pure mode BVH probs replace originals.
     """
-    config = original_router.config
-    top_k = config.top_k_experts
-    num_experts = config.num_experts
+
+    def __init__(self, original_router: nn.Module, bvh: nn.Module,
+                 mode: str, n_candidates: int):
+        super().__init__()
+        self.original = original_router
+        self.bvh = bvh
+        self.mode = mode
+        self.n_candidates = n_candidates
+        self.top_k = original_router.config.top_k_experts
+        self.num_experts = original_router.config.num_experts
 
     @torch.no_grad()
-    def bvh_forward(hidden_states: torch.Tensor):
-        # Calibration step: same as Gemma4TextRouter.forward up through .proj
-        x = original_router.norm(hidden_states)
-        x = x * original_router.scale * original_router.scalar_root_size
+    def forward(self, hidden_states: torch.Tensor):
+        # Always call the original router → triggers accelerate's pre-forward hook
+        # and gives us the full softmax probabilities + per_expert_scale-applied
+        # weights. We override only the top-k selection.
+        full_probs, orig_top_k_weights, orig_top_k_index = self.original(hidden_states)
 
-        # BVH may live on a different device than original_router (e.g. CPU
-        # for offloaded layers). Move its query into BVH's device.
-        bvh_dev = next(bvh.parameters()).device
-        x_bvh = x.detach().to(device=bvh_dev, dtype=torch.float32)
-        bvh_probs, _ = bvh(x_bvh)
+        # Run BVH on the same hidden states
+        bvh_dev = next(self.bvh.parameters()).device
+        h = hidden_states.detach().to(device=bvh_dev, dtype=torch.float32)
+        if h.dim() == 3:
+            h = h.reshape(-1, h.shape[-1])
+        bvh_probs, _ = self.bvh(h)
 
-        if mode == "pure":
-            # bvh_probs already softmax-normalized
-            full_probs = bvh_probs.to(device=x.device, dtype=x.dtype)
-            top_k_weights, top_k_index = torch.topk(full_probs, top_k, dim=-1)
-        elif mode == "hybrid":
-            cand_dev_probs = bvh_probs  # on bvh_dev
-            _, candidate_ids = torch.topk(cand_dev_probs, n_candidates, dim=-1)
-            candidate_ids = candidate_ids.to(x.device)
-            full_logits = original_router.proj(x)
-            full_probs = F.softmax(full_logits, dim=-1)
+        if self.mode == "pure":
+            # BVH selects top-k directly from its own probs
+            top_k_weights, top_k_index = torch.topk(
+                bvh_probs.to(full_probs.device), self.top_k, dim=-1
+            )
+            top_k_weights = top_k_weights.to(full_probs.dtype)
+        elif self.mode == "hybrid":
+            # BVH narrows to N candidates; original full_probs scores them exactly
+            _, candidate_ids = torch.topk(bvh_probs, self.n_candidates, dim=-1)
+            candidate_ids = candidate_ids.to(full_probs.device)
             cand_probs = full_probs.gather(1, candidate_ids)
-            top_k_vals, top_k_local = torch.topk(cand_probs, top_k, dim=-1)
+            top_k_vals, top_k_local = torch.topk(cand_probs, self.top_k, dim=-1)
             top_k_index = candidate_ids.gather(1, top_k_local)
             top_k_weights = top_k_vals
         else:
-            raise ValueError(f"unknown mode {mode}")
+            raise ValueError(f"unknown mode {self.mode}")
 
+        # Renormalize + apply per_expert_scale (matches original Gemma4TextRouter)
         top_k_weights = top_k_weights / top_k_weights.sum(dim=-1, keepdim=True)
-        top_k_weights = top_k_weights * original_router.per_expert_scale[top_k_index]
+        per_exp_scale = self.original.per_expert_scale[top_k_index]
+        top_k_weights = top_k_weights * per_exp_scale
         return full_probs, top_k_weights, top_k_index
-
-    return bvh_forward
 
 
 def install_adapters(model, checkpoint_dir: Path, mode: str, n_candidates: int):
-    """For each Gemma 4 MoE layer, monkey-patch layer.router.forward so it uses
-    a trained BVH router for top-k selection. Original calibration parameters
-    (norm, scale, per_expert_scale) and proj remain on the original router so
-    accelerate's offload hooks continue to work."""
+    """Replace each MoE layer's .router with BVHRoutedRouterWrapper. The
+    wrapper holds the original router as a child so accelerate continues to
+    manage its offload hooks transparently."""
     layers = model.model.language_model.layers
     n_adapted = 0
     for i, layer in enumerate(layers):
@@ -131,22 +140,12 @@ def install_adapters(model, checkpoint_dir: Path, mode: str, n_candidates: int):
         if not ckpt.exists():
             print(f"  [skip] layer {i}: no checkpoint at {ckpt}", file=sys.stderr)
             continue
-        # Place BVH on the GPU if it has any GPU layers; otherwise CPU.
         target_dev = (
-            torch.device("cuda")
-            if torch.cuda.is_available()
-            else torch.device("cpu")
+            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         )
         bvh = _load_bvh_router(ckpt, target_dev)
-        layer.router.forward = _make_bvh_forward(
-            original_router=layer.router,
-            bvh=bvh,
-            mode=mode,
-            n_candidates=n_candidates,
-        )
-        # Keep BVH alive on the layer (otherwise GC would collect it once
-        # bvh goes out of scope here).
-        layer.router._bvh_router_holder = bvh
+        wrapper = BVHRoutedRouterWrapper(layer.router, bvh, mode, n_candidates)
+        layer.router = wrapper
         n_adapted += 1
     return n_adapted
 

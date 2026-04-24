@@ -55,42 +55,48 @@ def _load_bvh_router(ckpt_path: Path, device: torch.device) -> nn.Module:
     return router.to(device)
 
 
-def _make_bvh_forward(original_gate: nn.Module, bvh: nn.Module,
-                      mode: str, n_candidates: int):
-    """Build a forward closure for Qwen3_5MoeTopKRouter that uses BVH for
-    top-k selection. Monkey-patched onto the original gate so accelerate's
-    pre-forward hooks still fire."""
-    top_k = original_gate.top_k
-    num_experts = original_gate.num_experts
-    hidden_dim = original_gate.hidden_dim
+class BVHRoutedQwenGateWrapper(nn.Module):
+    """Wraps Qwen3_5MoeTopKRouter — call original to fire accelerate hooks,
+    then override top-k selection with BVH."""
+
+    def __init__(self, original_gate: nn.Module, bvh: nn.Module,
+                 mode: str, n_candidates: int):
+        super().__init__()
+        self.original = original_gate
+        self.bvh = bvh
+        self.mode = mode
+        self.n_candidates = n_candidates
+        self.top_k = original_gate.top_k
+        self.num_experts = original_gate.num_experts
+        self.hidden_dim = original_gate.hidden_dim
 
     @torch.no_grad()
-    def bvh_forward(hidden_states):
-        x = hidden_states.reshape(-1, hidden_dim)
-        bvh_dev = next(bvh.parameters()).device
-        x_bvh = x.detach().to(device=bvh_dev, dtype=torch.float32)
-        bvh_probs, _ = bvh(x_bvh)
+    def forward(self, hidden_states):
+        full_probs, _orig_weights, _orig_idx = self.original(hidden_states)
 
-        if mode == "pure":
-            full_probs = bvh_probs.to(device=x.device, dtype=x.dtype)
-            top_vals, top_idx = torch.topk(full_probs, top_k, dim=-1)
-        elif mode == "hybrid":
-            _, candidate_ids = torch.topk(bvh_probs, n_candidates, dim=-1)
-            candidate_ids = candidate_ids.to(x.device)
-            full_logits = F.linear(x, original_gate.weight)
-            full_probs = F.softmax(full_logits, dtype=torch.float, dim=-1)
+        bvh_dev = next(self.bvh.parameters()).device
+        x = hidden_states.detach().reshape(-1, self.hidden_dim).to(
+            device=bvh_dev, dtype=torch.float32
+        )
+        bvh_probs, _ = self.bvh(x)
+
+        if self.mode == "pure":
+            top_vals, top_idx = torch.topk(
+                bvh_probs.to(full_probs.device), self.top_k, dim=-1
+            )
+        elif self.mode == "hybrid":
+            _, candidate_ids = torch.topk(bvh_probs, self.n_candidates, dim=-1)
+            candidate_ids = candidate_ids.to(full_probs.device)
             cand_probs = full_probs.gather(1, candidate_ids)
-            top_vals_cand, top_local = torch.topk(cand_probs, top_k, dim=-1)
+            top_vals_cand, top_local = torch.topk(cand_probs, self.top_k, dim=-1)
             top_idx = candidate_ids.gather(1, top_local)
             top_vals = top_vals_cand
         else:
-            raise ValueError(f"unknown mode {mode}")
+            raise ValueError(f"unknown mode {self.mode}")
 
         top_vals = top_vals / top_vals.sum(dim=-1, keepdim=True)
         top_vals = top_vals.to(full_probs.dtype)
         return full_probs, top_vals, top_idx
-
-    return bvh_forward
 
 
 def install_adapters(model, checkpoint_dir: Path, mode: str, n_candidates: int):
@@ -108,8 +114,8 @@ def install_adapters(model, checkpoint_dir: Path, mode: str, n_candidates: int):
             torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         )
         bvh = _load_bvh_router(ckpt, target_dev)
-        mlp.gate.forward = _make_bvh_forward(mlp.gate, bvh, mode, n_candidates)
-        mlp.gate._bvh_router_holder = bvh
+        wrapper = BVHRoutedQwenGateWrapper(mlp.gate, bvh, mode, n_candidates)
+        mlp.gate = wrapper
         n_adapted += 1
     return n_adapted
 
