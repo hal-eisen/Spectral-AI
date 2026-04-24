@@ -1,0 +1,134 @@
+[
+  {
+    "model": "OLMoE-like",
+    "hidden_dim": 2048,
+    "n_experts": 64,
+    "batch": 1,
+    "pytorch_us": 47.64,
+    "bvh_full_us": 129.27,
+    "bvh_pure_us": 18.47,
+    "speedup_full": 0.37,
+    "speedup_pure": 2.58
+  },
+  {
+    "model": "OLMoE-like",
+    "hidden_dim": 2048,
+    "n_experts": 64,
+    "batch": 64,
+    "pytorch_us": 52.01,
+    "bvh_full_us": 117.77,
+    "bvh_pure_us": 18.7,
+    "speedup_full": 0.44,
+    "speedup_pure": 2.78
+  },
+  {
+    "model": "OLMoE-like",
+    "hidden_dim": 2048,
+    "n_experts": 64,
+    "batch": 256,
+    "pytorch_us": 54.95,
+    "bvh_full_us": 118.41,
+    "bvh_pure_us": 19.01,
+    "speedup_full": 0.46,
+    "speedup_pure": 2.89
+  },
+  {
+    "model": "OLMoE-like",
+    "hidden_dim": 2048,
+    "n_experts": 64,
+    "batch": 1024,
+    "pytorch_us": 52.02,
+    "bvh_full_us": 128.94,
+    "bvh_pure_us": 23.04,
+    "speedup_full": 0.4,
+    "speedup_pure": 2.26
+  },
+  {
+    "model": "Gemma-4-26B-A4B",
+    "hidden_dim": 2816,
+    "n_experts": 128,
+    "batch": 1,
+    "pytorch_us": 47.91,
+    "bvh_full_us": null,
+    "bvh_pure_us": null,
+    "speedup_full": null,
+    "speedup_pure": null
+  },
+  {
+    "model": "Gemma-4-26B-A4B",
+    "hidden_dim": 2816,
+    "n_experts": 128,
+    "batch": 64,
+    "pytorch_us": 50.27,
+    "bvh_full_us": null,
+    "bvh_pure_us": null,
+    "speedup_full": null,
+    "speedup_pure": null
+  },
+  {
+    "model": "Gemma-4-26B-A4B",
+    "hidden_dim": 2816,
+    "n_experts": 128,
+    "batch": 256,
+    "pytorch_us": 52.51,
+    "bvh_full_us": null,
+    "bvh_pure_us": null,
+    "speedup_full": null,
+    "speedup_pure": null
+  },
+  {
+    "model": "Gemma-4-26B-A4B",
+    "hidden_dim": 2816,
+    "n_experts": 128,
+    "batch": 1024,
+    "pytorch_us": 55.67,
+    "bvh_full_us": null,
+    "bvh_pure_us": null,
+    "speedup_full": null,
+    "speedup_pure": null
+  },
+  {
+    "model": "Qwen-3.6-35B-A3B",
+    "hidden_dim": 2048,
+    "n_experts": 256,
+    "batch": 1,
+    "pytorch_us": 48.55,
+    "bvh_full_us": 130.78,
+    "bvh_pure_us": 19.68,
+    "speedup_full": 0.37,
+    "speedup_pure": 2.47
+  },
+  {
+    "model": "Qwen-3.6-35B-A3B",
+    "hidden_dim": 2048,
+    "n_experts": 256,
+    "batch": 64,
+    "pytorch_us": 50.8,
+    "bvh_full_us": 118.29,
+    "bvh_pure_us": 19.48,
+    "speedup_full": 0.43,
+    "speedup_pure": 2.61
+  },
+  {
+    "model": "Qwen-3.6-35B-A3B",
+    "hidden_dim": 2048,
+    "n_experts": 256,
+    "batch": 256,
+    "pytorch_us": 53.2,
+    "bvh_full_us": 123.19,
+    "bvh_pure_us": 21.06,
+    "speedup_full": 0.43,
+    "speedup_pure": 2.53
+  },
+  {
+    "model": "Qwen-3.6-35B-A3B",
+    "hidden_dim": 2048,
+    "n_experts": 256,
+    "batch": 1024,
+    "pytorch_us": 80.73,
+    "bvh_full_us": 127.21,
+    "bvh_pure_us": 25.34,
+    "speedup_full": 0.63,
+    "speedup_pure": 3.19
+  }
+]
