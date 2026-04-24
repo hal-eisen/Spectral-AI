@@ -1,0 +1,31 @@
+{
+  "model": "gemma4",
+  "results": [
+    {
+      "n_candidates": 32,
+      "ppl": 12.2109,
+      "eval_seconds": 661.6
+    },
+    {
+      "n_candidates": 64,
+      "ppl": 11.938,
+      "eval_seconds": 287.3
+    },
+    {
+      "n_candidates": 96,
+      "ppl": 11.9664,
+      "eval_seconds": 285.7
+    },
+    {
+      "n_candidates": 128,
+      "ppl": 11.9837,
+      "eval_seconds": 281.3
+    },
+    {
+      "n_candidates": null,
+      "mode": "pure",
+      "ppl": 121.9922,
+      "eval_seconds": 274.3
+    }
+  ]
+}
