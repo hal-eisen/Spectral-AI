@@ -1,0 +1,153 @@
+[
+  {
+    "hidden_dim": 2048,
+    "batch": 1,
+    "pytorch_us": 72.214,
+    "cuda_us": 130.047,
+    "speedup": 0.56
+  },
+  {
+    "hidden_dim": 2048,
+    "batch": 64,
+    "pytorch_us": 76.133,
+    "cuda_us": 117.267,
+    "speedup": 0.65
+  },
+  {
+    "hidden_dim": 2048,
+    "batch": 256,
+    "pytorch_us": 76.848,
+    "cuda_us": 118.014,
+    "speedup": 0.65
+  },
+  {
+    "hidden_dim": 2048,
+    "batch": 1024,
+    "pytorch_us": 75.983,
+    "cuda_us": 128.823,
+    "speedup": 0.59
+  },
+  {
+    "hidden_dim": 2816,
+    "batch": 1,
+    "pytorch_us": 74.609,
+    "cuda_us": 131.495,
+    "speedup": 0.57
+  },
+  {
+    "hidden_dim": 2816,
+    "batch": 64,
+    "pytorch_us": 76.013,
+    "cuda_us": 117.422,
+    "speedup": 0.65
+  },
+  {
+    "hidden_dim": 2816,
+    "batch": 256,
+    "pytorch_us": 76.47,
+    "cuda_us": 118.228,
+    "speedup": 0.65
+  },
+  {
+    "hidden_dim": 2816,
+    "batch": 1024,
+    "pytorch_us": 77.491,
+    "cuda_us": 135.431,
+    "speedup": 0.57
+  },
+  {
+    "hidden_dim": "none",
+    "batch": 1,
+    "pytorch_us": null,
+    "cuda_us": 18.926,
+    "speedup": null,
+    "note": "pure traversal"
+  },
+  {
+    "hidden_dim": "none",
+    "batch": 64,
+    "pytorch_us": null,
+    "cuda_us": 19.192,
+    "speedup": null,
+    "note": "pure traversal"
+  },
+  {
+    "hidden_dim": "none",
+    "batch": 256,
+    "pytorch_us": null,
+    "cuda_us": 19.78,
+    "speedup": null,
+    "note": "pure traversal"
+  },
+  {
+    "hidden_dim": "none",
+    "batch": 1024,
+    "pytorch_us": null,
+    "cuda_us": 23.648,
+    "speedup": null,
+    "note": "pure traversal"
+  },
+  {
+    "n_experts": 64,
+    "hidden_dim": 2816,
+    "batch": 256,
+    "pytorch_us": 51.344,
+    "cuda_us": 19.78,
+    "speedup": 2.6,
+    "note": "pytorch scaling vs n_experts"
+  },
+  {
+    "n_experts": 128,
+    "hidden_dim": 2816,
+    "batch": 256,
+    "pytorch_us": 51.002,
+    "cuda_us": 19.78,
+    "speedup": 2.58,
+    "note": "pytorch scaling vs n_experts"
+  },
+  {
+    "n_experts": 256,
+    "hidden_dim": 2816,
+    "batch": 256,
+    "pytorch_us": 49.443,
+    "cuda_us": 19.78,
+    "speedup": 2.5,
+    "note": "pytorch scaling vs n_experts"
+  },
+  {
+    "n_experts": 512,
+    "hidden_dim": 2816,
+    "batch": 256,
+    "pytorch_us": 57.22,
+    "cuda_us": 19.78,
+    "speedup": 2.89,
+    "note": "pytorch scaling vs n_experts"
+  },
+  {
+    "n_experts": 1024,
+    "hidden_dim": 2816,
+    "batch": 256,
+    "pytorch_us": 101.734,
+    "cuda_us": 19.78,
+    "speedup": 5.14,
+    "note": "pytorch scaling vs n_experts"
+  },
+  {
+    "n_experts": 2048,
+    "hidden_dim": 2816,
+    "batch": 256,
+    "pytorch_us": 172.509,
+    "cuda_us": 19.78,
+    "speedup": 8.72,
+    "note": "pytorch scaling vs n_experts"
+  },
+  {
+    "n_experts": 4096,
+    "hidden_dim": 2816,
+    "batch": 256,
+    "pytorch_us": 312.853,
+    "cuda_us": 19.78,
+    "speedup": 15.82,
+    "note": "pytorch scaling vs n_experts"
+  }
+]
