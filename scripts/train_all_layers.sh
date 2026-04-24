@@ -89,7 +89,7 @@ for ((L=0; L < N_LAYERS; L++)); do
         --real-data "$DATA" \
         --no-upcycle \
         --spectral \
-        --branch-specific \
+        \
         --n-experts "$N_EXPERTS" \
         --embed-dim "$EMBED_DIM" \
         --epochs "$EPOCHS" \

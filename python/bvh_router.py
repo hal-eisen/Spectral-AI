@@ -369,6 +369,16 @@ class BranchSpecificBVHRouter(nn.Module):
     def __init__(self, cfg: RouterConfig):
         super().__init__()
         self.cfg = cfg
+        # Convenience attrs for code that accesses these directly on the router
+        # (matches EnhancedBVHRouter's surface for compatibility with the
+        # distillation training loop).
+        self.n_level1 = cfg.n_level1
+        self.n_level2 = cfg.n_level2
+        self.n_level3 = cfg.n_level3
+        self.n_experts = cfg.n_experts
+        self.spectral_dim = cfg.spectral_dim
+        self.feature_dim = 128  # BranchSpecific doesn't use feature_dim internally;
+                                # surfaced for checkpoint config compat
 
         # Proyección global → nivel 1
         self.to_3d = nn.Linear(cfg.embed_dim, 3)
