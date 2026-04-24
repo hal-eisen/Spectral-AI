@@ -22,15 +22,15 @@ EPOCHS="${3:-30}"
 
 case "$MODEL" in
   gemma4)
-    DATA_DIR="data/gemma4_hiddens"
-    SAVE_DIR="checkpoints/gemma4_distill_branch"
+    DATA_DIR="${DATA_DIR:-data/gemma4_hiddens}"
+    SAVE_DIR="${SAVE_DIR:-checkpoints/gemma4_distill_branch}"
     N_EXPERTS=128
     EMBED_DIM=2816
     N_LAYERS=30
     ;;
   qwen36)
-    DATA_DIR="data/qwen36_hiddens"
-    SAVE_DIR="checkpoints/qwen36_distill_branch"
+    DATA_DIR="${DATA_DIR:-data/qwen36_hiddens}"
+    SAVE_DIR="${SAVE_DIR:-checkpoints/qwen36_distill_branch}"
     N_EXPERTS=256
     EMBED_DIM=2048
     N_LAYERS=40
