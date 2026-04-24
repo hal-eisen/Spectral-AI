@@ -449,6 +449,7 @@ class EnhancedBVHRouter(nn.Module):
         encoder_hidden: int = None,
     ):
         super().__init__()
+        self.input_dim = input_dim
         self.n_level1 = n_level1
         self.n_level2 = n_level2
         self.n_level3 = n_level3
@@ -1263,12 +1264,15 @@ def train_bvh_distillation(
                 "spectral_mode": spectral_mode,
                 "beta": get_ste_beta() if spectral_mode else None,
                 "config": {
-                    "input_dim": 2048,
+                    "input_dim": (
+                        router.cfg.embed_dim if hasattr(router, "cfg")
+                        else getattr(router, "input_dim", 2048)
+                    ),
                     "n_experts": router.n_experts,
                     "n_level1": router.n_level1,
                     "n_level2": router.n_level2,
                     "n_level3": router.n_level3,
-                    "feature_dim": router.feature_dim,
+                    "feature_dim": getattr(router, "feature_dim", 128),
                     "spectral_mode": spectral_mode,
                     "spectral_dim": getattr(router, 'spectral_dim', 64),
                 },
