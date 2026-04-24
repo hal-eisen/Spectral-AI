@@ -70,80 +70,60 @@ def _load_bvh_router(ckpt_path: Path, device: torch.device) -> nn.Module:
     return router.to(device)
 
 
-class BVHRouterAdapter(nn.Module):
-    """Drop-in replacement for Gemma4TextRouter.
-
-    Preserves: RMSNorm + scale + per_expert_scale (the calibration of the
-    pretrained router). Replaces only the .proj linear (hidden -> n_experts)
-    with the trained BVH router.
-
-    Forward returns the same 3-tuple shape contract:
-        (router_probabilities, top_k_weights, top_k_index)
+def _make_bvh_forward(original_router: nn.Module, bvh: nn.Module,
+                      mode: str, n_candidates: int):
+    """Build a closure that replaces original_router.forward with BVH-routed
+    behavior. We monkey-patch instead of replacing the whole module so accelerate's
+    pre-forward hooks (which live on the original_router) still fire and move
+    its parameters from CPU/meta to the right compute device.
     """
+    config = original_router.config
+    top_k = config.top_k_experts
+    num_experts = config.num_experts
 
-    def __init__(
-        self,
-        original_router: nn.Module,
-        bvh_router: nn.Module,
-        mode: str = "hybrid",
-        n_candidates: int = 32,
-        top_k_experts: Optional[int] = None,
-    ):
-        super().__init__()
-        # Inherit the calibration components verbatim
-        self.norm = original_router.norm
-        self.scale = original_router.scale
-        self.per_expert_scale = original_router.per_expert_scale
-        self.scalar_root_size = original_router.scalar_root_size
-        self.eps = original_router.eps
-        self.config = original_router.config
-        # Original linear (only used in hybrid mode for accurate scoring)
-        self.original_proj = original_router.proj
-        # BVH router (replaces proj for routing decisions)
-        self.bvh = bvh_router
+    @torch.no_grad()
+    def bvh_forward(hidden_states: torch.Tensor):
+        # Calibration step: same as Gemma4TextRouter.forward up through .proj
+        x = original_router.norm(hidden_states)
+        x = x * original_router.scale * original_router.scalar_root_size
 
-        self.mode = mode
-        self.n_candidates = n_candidates
-        self.top_k = top_k_experts or original_router.config.top_k_experts
-        self.num_experts = original_router.config.num_experts
+        # BVH may live on a different device than original_router (e.g. CPU
+        # for offloaded layers). Move its query into BVH's device.
+        bvh_dev = next(bvh.parameters()).device
+        x_bvh = x.detach().to(device=bvh_dev, dtype=torch.float32)
+        bvh_probs, _ = bvh(x_bvh)
 
-    def forward(self, hidden_states: torch.Tensor):
-        # Match original router's preprocessing exactly
-        x = self.norm(hidden_states)
-        x = x * self.scale * self.scalar_root_size
-
-        # Step 1: BVH router scores all experts (soft probs)
-        with torch.no_grad():
-            bvh_probs, _ = self.bvh(x.float())
-
-        if self.mode == "pure":
-            # bvh_probs is already a normalized distribution (sums to 1)
-            full_probs = bvh_probs.to(x.dtype)
-            top_k_weights, top_k_index = torch.topk(full_probs, self.top_k, dim=-1)
-        elif self.mode == "hybrid":
-            # BVH narrows to N candidates; original .proj scores those exactly
-            _, candidate_ids = torch.topk(bvh_probs, self.n_candidates, dim=-1)
-            full_logits = self.original_proj(x)
+        if mode == "pure":
+            # bvh_probs already softmax-normalized
+            full_probs = bvh_probs.to(device=x.device, dtype=x.dtype)
+            top_k_weights, top_k_index = torch.topk(full_probs, top_k, dim=-1)
+        elif mode == "hybrid":
+            cand_dev_probs = bvh_probs  # on bvh_dev
+            _, candidate_ids = torch.topk(cand_dev_probs, n_candidates, dim=-1)
+            candidate_ids = candidate_ids.to(x.device)
+            full_logits = original_router.proj(x)
             full_probs = F.softmax(full_logits, dim=-1)
             cand_probs = full_probs.gather(1, candidate_ids)
-            top_k_vals, top_k_local = torch.topk(cand_probs, self.top_k, dim=-1)
+            top_k_vals, top_k_local = torch.topk(cand_probs, top_k, dim=-1)
             top_k_index = candidate_ids.gather(1, top_k_local)
             top_k_weights = top_k_vals
         else:
-            raise ValueError(f"unknown mode {self.mode}")
+            raise ValueError(f"unknown mode {mode}")
 
-        # Renormalize + apply per_expert_scale, matching the original
         top_k_weights = top_k_weights / top_k_weights.sum(dim=-1, keepdim=True)
-        top_k_weights = top_k_weights * self.per_expert_scale[top_k_index]
+        top_k_weights = top_k_weights * original_router.per_expert_scale[top_k_index]
         return full_probs, top_k_weights, top_k_index
+
+    return bvh_forward
 
 
 def install_adapters(model, checkpoint_dir: Path, mode: str, n_candidates: int):
-    """Walk Gemma 4's MoE layers and replace each .router with BVHRouterAdapter.
-    Returns the count of adapted layers."""
+    """For each Gemma 4 MoE layer, monkey-patch layer.router.forward so it uses
+    a trained BVH router for top-k selection. Original calibration parameters
+    (norm, scale, per_expert_scale) and proj remain on the original router so
+    accelerate's offload hooks continue to work."""
     layers = model.model.language_model.layers
     n_adapted = 0
-    device = next(model.parameters()).device
     for i, layer in enumerate(layers):
         if not hasattr(layer, "router"):
             continue
@@ -151,18 +131,22 @@ def install_adapters(model, checkpoint_dir: Path, mode: str, n_candidates: int):
         if not ckpt.exists():
             print(f"  [skip] layer {i}: no checkpoint at {ckpt}", file=sys.stderr)
             continue
-        bvh = _load_bvh_router(ckpt, device)
-        # Need bvh on the SAME device as the original router (which may be CPU
-        # for offloaded layers). Use the layer's router device:
-        router_dev = next(layer.router.parameters()).device
-        bvh = bvh.to(router_dev)
-        adapter = BVHRouterAdapter(
+        # Place BVH on the GPU if it has any GPU layers; otherwise CPU.
+        target_dev = (
+            torch.device("cuda")
+            if torch.cuda.is_available()
+            else torch.device("cpu")
+        )
+        bvh = _load_bvh_router(ckpt, target_dev)
+        layer.router.forward = _make_bvh_forward(
             original_router=layer.router,
-            bvh_router=bvh,
+            bvh=bvh,
             mode=mode,
             n_candidates=n_candidates,
         )
-        layer.router = adapter
+        # Keep BVH alive on the layer (otherwise GC would collect it once
+        # bvh goes out of scope here).
+        layer.router._bvh_router_holder = bvh
         n_adapted += 1
     return n_adapted
 

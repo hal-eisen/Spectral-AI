@@ -55,57 +55,42 @@ def _load_bvh_router(ckpt_path: Path, device: torch.device) -> nn.Module:
     return router.to(device)
 
 
-class BVHQwenRouterAdapter(nn.Module):
-    """Drop-in replacement for Qwen3_5MoeTopKRouter.
+def _make_bvh_forward(original_gate: nn.Module, bvh: nn.Module,
+                      mode: str, n_candidates: int):
+    """Build a forward closure for Qwen3_5MoeTopKRouter that uses BVH for
+    top-k selection. Monkey-patched onto the original gate so accelerate's
+    pre-forward hooks still fire."""
+    top_k = original_gate.top_k
+    num_experts = original_gate.num_experts
+    hidden_dim = original_gate.hidden_dim
 
-    Preserves the contract:
-        forward(hidden_states) -> (router_logits[softmax], top_k_weights, top_k_indices)
+    @torch.no_grad()
+    def bvh_forward(hidden_states):
+        x = hidden_states.reshape(-1, hidden_dim)
+        bvh_dev = next(bvh.parameters()).device
+        x_bvh = x.detach().to(device=bvh_dev, dtype=torch.float32)
+        bvh_probs, _ = bvh(x_bvh)
 
-    In hybrid mode the original .weight stays around to score BVH candidates
-    exactly. In pure mode the BVH probs become the router output directly.
-    """
-
-    def __init__(
-        self,
-        original_gate: nn.Module,
-        bvh_router: nn.Module,
-        mode: str = "hybrid",
-        n_candidates: int = 32,
-    ):
-        super().__init__()
-        self.top_k = original_gate.top_k
-        self.num_experts = original_gate.num_experts
-        self.hidden_dim = original_gate.hidden_dim
-        # Keep the original linear weight for hybrid scoring
-        self.original_weight = original_gate.weight  # (num_experts, hidden_dim)
-        self.bvh = bvh_router
-        self.mode = mode
-        self.n_candidates = n_candidates
-
-    def forward(self, hidden_states):
-        x = hidden_states.reshape(-1, self.hidden_dim)
-        with torch.no_grad():
-            bvh_probs, _ = self.bvh(x.float())
-
-        if self.mode == "pure":
-            # bvh_probs is already a normalized distribution (sums to 1)
-            full_probs = bvh_probs.to(x.dtype)
-            top_vals, top_idx = torch.topk(full_probs, self.top_k, dim=-1)
-        elif self.mode == "hybrid":
-            _, candidate_ids = torch.topk(bvh_probs, self.n_candidates, dim=-1)
-            full_logits = F.linear(x, self.original_weight)
+        if mode == "pure":
+            full_probs = bvh_probs.to(device=x.device, dtype=x.dtype)
+            top_vals, top_idx = torch.topk(full_probs, top_k, dim=-1)
+        elif mode == "hybrid":
+            _, candidate_ids = torch.topk(bvh_probs, n_candidates, dim=-1)
+            candidate_ids = candidate_ids.to(x.device)
+            full_logits = F.linear(x, original_gate.weight)
             full_probs = F.softmax(full_logits, dtype=torch.float, dim=-1)
             cand_probs = full_probs.gather(1, candidate_ids)
-            top_vals_cand, top_local = torch.topk(cand_probs, self.top_k, dim=-1)
+            top_vals_cand, top_local = torch.topk(cand_probs, top_k, dim=-1)
             top_idx = candidate_ids.gather(1, top_local)
             top_vals = top_vals_cand
         else:
-            raise ValueError(f"unknown mode {self.mode}")
+            raise ValueError(f"unknown mode {mode}")
 
-        # Renormalize so per-token weights sum to 1 (matches original Qwen3_5MoeTopKRouter)
         top_vals = top_vals / top_vals.sum(dim=-1, keepdim=True)
         top_vals = top_vals.to(full_probs.dtype)
         return full_probs, top_vals, top_idx
+
+    return bvh_forward
 
 
 def install_adapters(model, checkpoint_dir: Path, mode: str, n_candidates: int):
@@ -119,15 +104,12 @@ def install_adapters(model, checkpoint_dir: Path, mode: str, n_candidates: int):
         if not ckpt.exists():
             print(f"  [skip] layer {i}: no checkpoint at {ckpt}", file=sys.stderr)
             continue
-        gate_dev = next(mlp.gate.parameters()).device
-        bvh = _load_bvh_router(ckpt, gate_dev)
-        adapter = BVHQwenRouterAdapter(
-            original_gate=mlp.gate,
-            bvh_router=bvh,
-            mode=mode,
-            n_candidates=n_candidates,
+        target_dev = (
+            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         )
-        mlp.gate = adapter
+        bvh = _load_bvh_router(ckpt, target_dev)
+        mlp.gate.forward = _make_bvh_forward(mlp.gate, bvh, mode, n_candidates)
+        mlp.gate._bvh_router_holder = bvh
         n_adapted += 1
     return n_adapted
 
