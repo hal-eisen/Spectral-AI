@@ -125,34 +125,35 @@ class BVHRoutedRouterWrapper(nn.Module):
 
 def _snapshot_per_expert_scale(router: nn.Module, hidden_dim: int,
                                 num_experts: int) -> torch.Tensor:
-    """Run a 1-token dummy forward through the router so accelerate loads its
-    parameters, then snapshot per_expert_scale to a CPU buffer that stays
-    addressable after accelerate moves the parameter back to meta.
+    """Snapshot per_expert_scale via a forward-pre hook.
+
+    Hook ordering: accelerate's forward_pre_hook fires first (moves params to
+    device), THEN our pre-hook fires (sees params on device), THEN forward
+    runs, THEN accelerate's forward_hook moves params back to meta.
+    Reading inside a forward_hook would be too late.
     """
-    # Dummy hidden_states on a device the router can probably accept
-    dummy = torch.zeros(1, hidden_dim, dtype=torch.bfloat16)
-    # Best-effort device: any GPU param of the model implies we can use cuda
-    if torch.cuda.is_available():
-        dummy = dummy.to("cuda")
-    with torch.no_grad():
-        _ = router(dummy)
-    # Now per_expert_scale should be on-device. Even if accelerate moves it
-    # back, take a clone before that happens. The accelerate post-forward hook
-    # has already fired by the time _ is bound, so we have to be quick OR use
-    # a hook. Simpler: re-trigger and grab inside a forward hook.
     snap = {}
 
-    def grab(mod, args, output):
-        snap["pes"] = mod.per_expert_scale.detach().to("cpu", dtype=torch.float32, copy=True)
+    def grab_pre(mod, args, kwargs):
+        try:
+            pes = mod.per_expert_scale
+            if pes.device.type != "meta":
+                snap["pes"] = pes.detach().to("cpu", dtype=torch.float32, copy=True)
+        except Exception:
+            pass
 
-    h = router.register_forward_hook(grab)
+    h = router.register_forward_pre_hook(grab_pre, with_kwargs=True)
     try:
+        dummy = torch.zeros(1, hidden_dim, dtype=torch.bfloat16)
+        if torch.cuda.is_available():
+            dummy = dummy.to("cuda")
         with torch.no_grad():
             _ = router(dummy)
     finally:
         h.remove()
-    if "pes" not in snap or snap["pes"].device.type == "meta":
-        # Fallback: identity scale
+    if "pes" not in snap:
+        # Fallback: identity scale (per_expert_scale init is ones, so this is
+        # what an unfine-tuned router would have anyway).
         return torch.ones(num_experts, dtype=torch.float32)
     return snap["pes"]
 
