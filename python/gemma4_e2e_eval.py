@@ -80,7 +80,7 @@ class BVHRoutedRouterWrapper(nn.Module):
     """
 
     def __init__(self, original_router: nn.Module, bvh: nn.Module,
-                 mode: str, n_candidates: int):
+                 mode: str, n_candidates: int, per_expert_scale: torch.Tensor):
         super().__init__()
         self.original = original_router
         self.bvh = bvh
@@ -88,15 +88,14 @@ class BVHRoutedRouterWrapper(nn.Module):
         self.n_candidates = n_candidates
         self.top_k = original_router.config.top_k_experts
         self.num_experts = original_router.config.num_experts
+        # Snapshotted at install time when the parameter is alive on device.
+        self.register_buffer("per_expert_scale", per_expert_scale)
 
     @torch.no_grad()
     def forward(self, hidden_states: torch.Tensor):
-        # Always call the original router → triggers accelerate's pre-forward hook
-        # and gives us the full softmax probabilities + per_expert_scale-applied
-        # weights. We override only the top-k selection.
-        full_probs, orig_top_k_weights, orig_top_k_index = self.original(hidden_states)
+        # Call original to trigger accelerate's hook chain and get full probs.
+        full_probs, _orig_w, _orig_i = self.original(hidden_states)
 
-        # Run BVH on the same hidden states
         bvh_dev = next(self.bvh.parameters()).device
         h = hidden_states.detach().to(device=bvh_dev, dtype=torch.float32)
         if h.dim() == 3:
@@ -104,13 +103,11 @@ class BVHRoutedRouterWrapper(nn.Module):
         bvh_probs, _ = self.bvh(h)
 
         if self.mode == "pure":
-            # BVH selects top-k directly from its own probs
             top_k_weights, top_k_index = torch.topk(
                 bvh_probs.to(full_probs.device), self.top_k, dim=-1
             )
             top_k_weights = top_k_weights.to(full_probs.dtype)
         elif self.mode == "hybrid":
-            # BVH narrows to N candidates; original full_probs scores them exactly
             _, candidate_ids = torch.topk(bvh_probs, self.n_candidates, dim=-1)
             candidate_ids = candidate_ids.to(full_probs.device)
             cand_probs = full_probs.gather(1, candidate_ids)
@@ -120,18 +117,53 @@ class BVHRoutedRouterWrapper(nn.Module):
         else:
             raise ValueError(f"unknown mode {self.mode}")
 
-        # Renormalize + apply per_expert_scale (matches original Gemma4TextRouter)
         top_k_weights = top_k_weights / top_k_weights.sum(dim=-1, keepdim=True)
-        per_exp_scale = self.original.per_expert_scale[top_k_index]
+        per_exp_scale = self.per_expert_scale[top_k_index].to(top_k_weights.dtype)
         top_k_weights = top_k_weights * per_exp_scale
         return full_probs, top_k_weights, top_k_index
 
 
+def _snapshot_per_expert_scale(router: nn.Module, hidden_dim: int,
+                                num_experts: int) -> torch.Tensor:
+    """Run a 1-token dummy forward through the router so accelerate loads its
+    parameters, then snapshot per_expert_scale to a CPU buffer that stays
+    addressable after accelerate moves the parameter back to meta.
+    """
+    # Dummy hidden_states on a device the router can probably accept
+    dummy = torch.zeros(1, hidden_dim, dtype=torch.bfloat16)
+    # Best-effort device: any GPU param of the model implies we can use cuda
+    if torch.cuda.is_available():
+        dummy = dummy.to("cuda")
+    with torch.no_grad():
+        _ = router(dummy)
+    # Now per_expert_scale should be on-device. Even if accelerate moves it
+    # back, take a clone before that happens. The accelerate post-forward hook
+    # has already fired by the time _ is bound, so we have to be quick OR use
+    # a hook. Simpler: re-trigger and grab inside a forward hook.
+    snap = {}
+
+    def grab(mod, args, output):
+        snap["pes"] = mod.per_expert_scale.detach().to("cpu", dtype=torch.float32, copy=True)
+
+    h = router.register_forward_hook(grab)
+    try:
+        with torch.no_grad():
+            _ = router(dummy)
+    finally:
+        h.remove()
+    if "pes" not in snap or snap["pes"].device.type == "meta":
+        # Fallback: identity scale
+        return torch.ones(num_experts, dtype=torch.float32)
+    return snap["pes"]
+
+
 def install_adapters(model, checkpoint_dir: Path, mode: str, n_candidates: int):
-    """Replace each MoE layer's .router with BVHRoutedRouterWrapper. The
-    wrapper holds the original router as a child so accelerate continues to
-    manage its offload hooks transparently."""
+    """Replace each MoE layer's .router with BVHRoutedRouterWrapper. We
+    snapshot per_expert_scale at install time (via dummy forward) so we don't
+    depend on accelerate's offload state at eval-time forward."""
     layers = model.model.language_model.layers
+    hidden_dim = model.config.text_config.hidden_size
+    n_experts = model.config.text_config.num_experts
     n_adapted = 0
     for i, layer in enumerate(layers):
         if not hasattr(layer, "router"):
@@ -144,7 +176,9 @@ def install_adapters(model, checkpoint_dir: Path, mode: str, n_candidates: int):
             torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         )
         bvh = _load_bvh_router(ckpt, target_dev)
-        wrapper = BVHRoutedRouterWrapper(layer.router, bvh, mode, n_candidates)
+        per_exp_scale = _snapshot_per_expert_scale(layer.router, hidden_dim, n_experts)
+        wrapper = BVHRoutedRouterWrapper(layer.router, bvh, mode, n_candidates,
+                                         per_exp_scale.to(target_dev))
         layer.router = wrapper
         n_adapted += 1
     return n_adapted
