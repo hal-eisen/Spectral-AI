@@ -1,20 +1,19 @@
 """Dump deterministic reference (input, output) tensors for the C++ ggml-graph
-BVH router validator (P782-3).
+BVH router validator (P782-3 / P782-3b).
+
+Subcommands:
+  dump          : dump input + input_proj output (256-dim)
+  dump-full     : dump input + full router logits (n_experts) + expert_ids
+  compare       : compare two float32 .bin files, report max-abs delta
+  compare-ids   : compare two int32 .bin files, report agreement rate
 
 Usage:
-  python python/dump_bvh_router_reference.py \
+  python python/dump_bvh_router_reference.py dump-full \
       --checkpoint checkpoints/gemma4_distill_branch_200k/bvh_router_L0_best.pt \
       --batch 4 \
-      --out-input  /tmp/bvh_input.bin \
-      --out-output /tmp/bvh_expected_input_proj.bin
-
-This produces:
-  - {out_input}  : float32[batch, input_dim]  -- the synthetic input
-  - {out_output} : float32[batch, 256]        -- PyTorch's input_proj(x)
-
-The C++ side is run with `--ggml-input out_input` and produces its own
-output. A separate compare step (this script's --compare flag) reports the
-max-abs delta and the max relative error.
+      --out-input    /tmp/bvh_input.bin \
+      --out-logits   /tmp/bvh_expected_logits.bin \
+      --out-ids      /tmp/bvh_expected_ids.bin
 """
 from __future__ import annotations
 
@@ -100,11 +99,70 @@ def cmd_compare(args):
         sys.exit(2)
 
 
+def cmd_dump_full(args):
+    """Build the full EnhancedBVHRouter from checkpoint and dump logits + ids."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from olmoe_bvh_distill import EnhancedBVHRouter
+    import spectral_techniques as st
+
+    ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
+    cfg = ckpt["config"]
+    sd  = ckpt["router_state_dict"]
+    beta = ckpt.get("beta", 1.0)
+
+    router = EnhancedBVHRouter(
+        input_dim   = cfg["input_dim"],
+        n_level1    = cfg["n_level1"],
+        n_level2    = cfg["n_level2"],
+        n_level3    = cfg["n_level3"],
+        feature_dim = cfg["feature_dim"],
+        spectral_mode = cfg["spectral_mode"],
+        spectral_dim  = cfg["spectral_dim"],
+    )
+    router.load_state_dict(sd)
+    router.eval()
+    st.set_ste_beta(beta)
+
+    x = deterministic_input(args.batch, cfg["input_dim"], args.seed)
+    with torch.no_grad():
+        # The forward returns (probs, ids); we want pre-softmax logits, which
+        # the router stores at self._last_logits (post-RMSNorm).
+        probs, ids = router(x)
+        logits = router._last_logits
+
+    args.out_input.parent.mkdir(parents=True, exist_ok=True)
+    args.out_input .write_bytes(x.float().contiguous().numpy().tobytes())
+    args.out_logits.write_bytes(logits.float().contiguous().numpy().tobytes())
+    args.out_ids   .write_bytes(ids.to(torch.int32).contiguous().numpy().tobytes())
+
+    print(f"  input_dim   = {cfg['input_dim']}")
+    print(f"  n_experts   = {cfg['n_experts']}")
+    print(f"  beta (eval) = {beta:.3f}")
+    print(f"  batch       = {args.batch}  seed={args.seed}")
+    print(f"  expert_ids  = {ids.tolist()}")
+    print(f"  logits[0,:8]= {logits[0,:8].tolist()}")
+    print(f"  logits range= [{logits.min().item():.4f}, {logits.max().item():.4f}]")
+    print(f"  wrote input  -> {args.out_input}  ({x.numel() * 4} bytes)")
+    print(f"  wrote logits -> {args.out_logits}")
+    print(f"  wrote ids    -> {args.out_ids}")
+
+
+def cmd_compare_ids(args):
+    expected = torch.frombuffer(args.expected.read_bytes(), dtype=torch.int32)
+    actual   = torch.frombuffer(args.actual.read_bytes(),   dtype=torch.int32)
+    n = min(expected.numel(), actual.numel())
+    agree = (expected[:n] == actual[:n]).sum().item()
+    print(f"  n_samples = {n}")
+    print(f"  agreement = {agree}/{n}  ({100.0*agree/n:.2f}%)")
+    print(f"  expected  = {expected[:min(16, n)].tolist()}")
+    print(f"  actual    = {actual[:min(16, n)].tolist()}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(required=True, dest="cmd")
 
-    d = sub.add_parser("dump", help="Generate deterministic input + PyTorch output")
+    d = sub.add_parser("dump", help="Generate deterministic input + PyTorch input_proj output")
     d.add_argument("--checkpoint", type=Path, required=True)
     d.add_argument("--batch", type=int, default=4)
     d.add_argument("--seed", type=lambda s: int(s, 0), default=0xC0FFEE)
@@ -112,11 +170,25 @@ def main():
     d.add_argument("--out-output", type=Path, required=True)
     d.set_defaults(func=cmd_dump)
 
-    c = sub.add_parser("compare", help="Compare expected vs actual output bytes")
+    df = sub.add_parser("dump-full", help="Generate input + full-router logits + expert_ids")
+    df.add_argument("--checkpoint", type=Path, required=True)
+    df.add_argument("--batch", type=int, default=4)
+    df.add_argument("--seed", type=lambda s: int(s, 0), default=0xC0FFEE)
+    df.add_argument("--out-input",  type=Path, required=True)
+    df.add_argument("--out-logits", type=Path, required=True)
+    df.add_argument("--out-ids",    type=Path, required=True)
+    df.set_defaults(func=cmd_dump_full)
+
+    c = sub.add_parser("compare", help="Compare expected vs actual float32 output")
     c.add_argument("--expected", type=Path, required=True)
     c.add_argument("--actual",   type=Path, required=True)
     c.add_argument("--tol",      type=float, default=1e-3)
     c.set_defaults(func=cmd_compare)
+
+    ci = sub.add_parser("compare-ids", help="Compare two int32 expert_ids dumps")
+    ci.add_argument("--expected", type=Path, required=True)
+    ci.add_argument("--actual",   type=Path, required=True)
+    ci.set_defaults(func=cmd_compare_ids)
 
     args = ap.parse_args()
     args.func(args)
