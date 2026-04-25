@@ -1,0 +1,31 @@
+{
+  "model": "gemma4-26b-a4b",
+  "config": "experts 4-bit on GPU (24/30 layers), 6 layers' experts on CPU bf16",
+  "vram_used_gb": 13.13,
+  "n_candidates": 64,
+  "baseline": {
+    "median_s": 1.973,
+    "stdev_s": 0.0029,
+    "tok_per_s": 259.5,
+    "all_runs_s": [
+      1.9703,
+      1.973,
+      1.9753,
+      1.9736,
+      1.968
+    ]
+  },
+  "bvh_hybrid": {
+    "median_s": 2.0251,
+    "stdev_s": 0.0056,
+    "tok_per_s": 252.82,
+    "all_runs_s": [
+      2.0195,
+      2.0268,
+      2.0251,
+      2.0303,
+      2.0164
+    ]
+  },
+  "speedup_bvh_vs_baseline": 0.9743
+}
