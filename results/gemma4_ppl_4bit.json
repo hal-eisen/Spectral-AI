@@ -1,0 +1,15 @@
+{
+  "model": "gemma4-26b-a4b",
+  "config_4bit": "experts NF4 on GPU for 24/30 layers",
+  "vram_gb": 13.13,
+  "n_candidates": 64,
+  "ctx": 512,
+  "max_chunks": 50,
+  "ppl_full_bf16_baseline": 11.8725,
+  "ppl_full_bf16_bvh_n64_200k": 11.938,
+  "ppl_4bit_experts_baseline": 12.1144,
+  "ppl_4bit_experts_bvh_n64_200k": 12.1003,
+  "delta_4bit_vs_bf16_baseline_pct": 2.04,
+  "delta_bvh_vs_4bit_baseline_pct": -0.12,
+  "delta_4bit_bvh_vs_bf16_baseline_pct": 1.92
+}
