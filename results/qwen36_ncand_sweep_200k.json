@@ -1,0 +1,41 @@
+{
+  "model": "qwen36",
+  "results": [
+    {
+      "n_candidates": 32,
+      "ppl": 8.1251,
+      "eval_seconds": 904.1
+    },
+    {
+      "n_candidates": 64,
+      "ppl": 7.9552,
+      "eval_seconds": 367.4
+    },
+    {
+      "n_candidates": 96,
+      "ppl": 7.8967,
+      "eval_seconds": 365.2
+    },
+    {
+      "n_candidates": 128,
+      "ppl": 7.8744,
+      "eval_seconds": 368.9
+    },
+    {
+      "n_candidates": 192,
+      "ppl": 7.8795,
+      "eval_seconds": 365.5
+    },
+    {
+      "n_candidates": 256,
+      "ppl": 7.8749,
+      "eval_seconds": 377.3
+    },
+    {
+      "n_candidates": null,
+      "mode": "pure",
+      "ppl": 228.0508,
+      "eval_seconds": 365.0
+    }
+  ]
+}
