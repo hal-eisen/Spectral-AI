@@ -115,3 +115,14 @@ results/*_rerun.csv
 # Extracted hidden states (regenerate via extract_*.py)
 data/gemma4_hiddens/
 data/qwen36_hiddens/
+data/gemma4_hiddens_200k/
+data/qwen36_hiddens_200k/
+
+# Trained BVH router checkpoints (regenerate via scripts/train_all_layers.sh)
+checkpoints/gemma4_distill_branch/
+checkpoints/gemma4_distill_branch_200k/
+checkpoints/qwen36_distill_branch/
+checkpoints/qwen36_distill_branch_200k/
+
+# Exported BVH router .bin files (regenerate via export_bvh_router_for_llamacpp.py)
+checkpoints/*_bvh_router.bin
