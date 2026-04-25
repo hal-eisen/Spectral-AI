@@ -1,0 +1,15 @@
+{
+  "model": "qwen3.6-35b-a3b",
+  "config_4bit": "experts NF4 on GPU for 20/40 layers",
+  "vram_gb": 12.21,
+  "n_candidates": 128,
+  "ctx": 512,
+  "max_chunks": 50,
+  "ppl_full_bf16_baseline": 7.8729,
+  "ppl_full_bf16_bvh_n128_200k": 7.8744,
+  "ppl_4bit_experts_baseline": 7.895,
+  "ppl_4bit_experts_bvh_n128_200k": 7.9089,
+  "delta_4bit_vs_bf16_baseline_pct": 0.28,
+  "delta_bvh_vs_4bit_baseline_pct": 0.18,
+  "delta_4bit_bvh_vs_bf16_baseline_pct": 0.46
+}
