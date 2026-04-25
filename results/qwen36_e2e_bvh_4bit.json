@@ -1,0 +1,31 @@
+{
+  "model": "qwen3.6-35b-a3b",
+  "config": "experts NF4 on GPU (20/40 layers), remaining layers' experts on CPU bf16",
+  "vram_used_gb": 12.21,
+  "n_candidates": 128,
+  "baseline": {
+    "median_s": 5.1359,
+    "stdev_s": 0.0846,
+    "tok_per_s": 99.69,
+    "all_runs_s": [
+      5.3169,
+      5.1359,
+      5.1274,
+      5.1411,
+      5.1129
+    ]
+  },
+  "bvh_hybrid": {
+    "median_s": 5.1862,
+    "stdev_s": 0.0313,
+    "tok_per_s": 98.72,
+    "all_runs_s": [
+      5.1862,
+      5.2221,
+      5.2233,
+      5.1756,
+      5.1504
+    ]
+  },
+  "speedup_bvh_vs_baseline": 0.9903
+}

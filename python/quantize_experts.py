@@ -17,9 +17,16 @@ import torch.nn.functional as F
 from typing import Optional
 
 
-def _load_expert_tensors_from_safetensors(model_dir: str, layer_idx: int):
+def _load_expert_tensors_from_safetensors(model_dir: str, layer_idx: int,
+                                           model_kind: str = "gemma4"):
     """Read this layer's expert tensors directly from the safetensors index.
-    Returns (gate_up_proj, down_proj) as CPU bf16 tensors."""
+    Returns (gate_up_proj, down_proj) as CPU bf16 tensors.
+
+    Both Gemma 4 and Qwen 3.6 store experts as 3D nn.Parameter blobs at
+    different paths:
+      gemma4:  model.language_model.layers.{N}.experts.{gate_up_proj|down_proj}
+      qwen36:  model.language_model.layers.{N}.mlp.experts.{gate_up_proj|down_proj}
+    """
     import json
     from pathlib import Path
     from safetensors import safe_open
@@ -27,26 +34,59 @@ def _load_expert_tensors_from_safetensors(model_dir: str, layer_idx: int):
     mdir = Path(model_dir)
     idx = json.loads((mdir / "model.safetensors.index.json").read_text())
     wmap = idx["weight_map"]
-    gup_key = f"model.language_model.layers.{layer_idx}.experts.gate_up_proj"
-    dwn_key = f"model.language_model.layers.{layer_idx}.experts.down_proj"
-    gup_file = wmap[gup_key]
-    dwn_file = wmap[dwn_key]
+    if model_kind == "gemma4":
+        prefix = f"model.language_model.layers.{layer_idx}.experts"
+    elif model_kind == "qwen36":
+        prefix = f"model.language_model.layers.{layer_idx}.mlp.experts"
+    else:
+        raise ValueError(f"unknown model_kind {model_kind}")
+    gup_key = f"{prefix}.gate_up_proj"
+    dwn_key = f"{prefix}.down_proj"
 
     out = {}
-    for fname, key in [(gup_file, gup_key), (dwn_file, dwn_key)]:
+    for key in (gup_key, dwn_key):
+        fname = wmap[key]
         with safe_open(mdir / fname, framework="pt") as st:
             out[key] = st.get_tensor(key).to(torch.bfloat16)
     return out[gup_key], out[dwn_key]
 
 
+def _resolve_layers_and_experts(model, model_kind: str):
+    """Return (layers_list, experts_attr_path) for the given model kind.
+    experts_attr_path is a string we can use to reach the experts module
+    from a layer (e.g. 'experts' for Gemma 4, 'mlp.experts' for Qwen 3.6)."""
+    if model_kind == "gemma4":
+        return model.model.language_model.layers, "experts"
+    elif model_kind == "qwen36":
+        # Qwen3_5MoeForCausalLM exposes layers at model.model.layers (the
+        # safetensors uses model.language_model.* but transformers remaps).
+        if hasattr(model, "model") and hasattr(model.model, "language_model"):
+            layers = model.model.language_model.layers
+        else:
+            layers = model.model.layers
+        return layers, "mlp.experts"
+    else:
+        raise ValueError(f"unknown model_kind {model_kind}")
+
+
+def _get_experts(layer, attr_path: str):
+    obj = layer
+    for part in attr_path.split("."):
+        obj = getattr(obj, part)
+    return obj
+
+
 def quantize_experts_to_4bit(model, *, model_dir: str,
+                              model_kind: str = "gemma4",
                               blocksize: int = 128,
                               quant_type: str = "nf4",
                               compress_statistics: bool = True,
                               max_gpu_layers: Optional[int] = None) -> int:
-    """Walk Gemma4TextExperts modules; replace their float weights with 4-bit
-    bnb-quantized buffers + custom forward. Returns number of experts modules
-    converted.
+    """Walk experts modules; replace their float weights with 4-bit bnb-quantized
+    buffers + custom forward. Returns number of experts modules converted.
+
+    Works for both Gemma4TextExperts (model_kind='gemma4') and Qwen3_5MoeExperts
+    (model_kind='qwen36') — both store experts as 3D nn.Parameter blobs.
 
     If max_gpu_layers is set and there are more MoE layers than that, the
     later layers' experts stay on CPU (still in bf16) and dispatched per
@@ -57,25 +97,30 @@ def quantize_experts_to_4bit(model, *, model_dir: str,
     from bitsandbytes.functional import quantize_4bit, dequantize_4bit
 
     n_converted = 0
-    layers = model.model.language_model.layers
+    layers, experts_attr = _resolve_layers_and_experts(model, model_kind)
     dev = torch.device("cuda")
 
     for li, layer in enumerate(layers):
-        if not hasattr(layer, "experts"):
+        try:
+            experts = _get_experts(layer, experts_attr)
+        except AttributeError:
             continue
         if max_gpu_layers is not None and li >= max_gpu_layers:
             # Leave remaining layers' experts on CPU (their original device).
             # Restore from safetensors so they're not on `meta`.
-            gup_cpu, dwn_cpu = _load_expert_tensors_from_safetensors(model_dir, li)
-            layer.experts.gate_up_proj = nn.Parameter(gup_cpu, requires_grad=False)
-            layer.experts.down_proj = nn.Parameter(dwn_cpu, requires_grad=False)
+            gup_cpu, dwn_cpu = _load_expert_tensors_from_safetensors(
+                model_dir, li, model_kind=model_kind,
+            )
+            experts.gate_up_proj = nn.Parameter(gup_cpu, requires_grad=False)
+            experts.down_proj = nn.Parameter(dwn_cpu, requires_grad=False)
             continue
-        experts = layer.experts
         # Read expert tensors from safetensors (the in-memory ones are on meta
         # because accelerate offloaded them). Stream into GPU one expert at a
         # time to keep peak VRAM low (the layer-aggregate would be ~1.5 GB on
         # GPU at bf16 — too much temporary).
-        gup_cpu, dwn_cpu = _load_expert_tensors_from_safetensors(model_dir, li)
+        gup_cpu, dwn_cpu = _load_expert_tensors_from_safetensors(
+            model_dir, li, model_kind=model_kind,
+        )
         n_experts = gup_cpu.shape[0]
 
         gup_q, gup_states, dwn_q, dwn_states = [], [], [], []
