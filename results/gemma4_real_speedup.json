@@ -1,0 +1,25 @@
+{
+  "model": "gemma4-26b-a4b",
+  "device_map": "surgical (experts on CPU, dense on GPU)",
+  "vram_used_gb": 4.47,
+  "n_candidates": 64,
+  "baseline": {
+    "batch": 1,
+    "seq_len": 512,
+    "iters": 5,
+    "median_s": 4.755,
+    "mean_s": 4.7585,
+    "stdev_s": 0.0268,
+    "tok_per_s_median": 107.68
+  },
+  "bvh_python": {
+    "batch": 1,
+    "seq_len": 512,
+    "iters": 5,
+    "median_s": 4.7584,
+    "mean_s": 4.7666,
+    "stdev_s": 0.0556,
+    "tok_per_s_median": 107.6
+  },
+  "speedup_bvh_vs_baseline": 0.999
+}
