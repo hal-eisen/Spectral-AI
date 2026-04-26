@@ -6,13 +6,14 @@
 **BVH router:** `checkpoints/gemma4_bvh_router.bin` (200 k-token retrained, top-1 92 % vs base-model gate)  
 **Settings:** `-ngl 25` (model OOMs at full offload), `LLAMA_BVH_N_CANDIDATES=64` (50 % of 128 experts)
 
-## Three iterations
+## Four iterations
 
 | iteration | description | commit |
 |---|---|---|
 | **v1** | First implementation: separate `ggml_backend` instance for BVH weights | `2ddb60336` |
 | **v2** | Cross-backend split fix: shared buffer type with model + scale-softmax fusion + precomputed constants | `22da8bef9` |
-| **v3** | Fused CUDA op: GGML_OP_BVH_ROUTER. Hybrid layout — input_proj as ggml ops (cuBLAS), tail (3 levels + expert_head + spectral + RMSNorm) as one kernel grid launch | `<this>` |
+| **v3** | Fused CUDA op: GGML_OP_BVH_ROUTER. Hybrid layout — input_proj as ggml ops (cuBLAS), tail (3 levels + expert_head + spectral + RMSNorm) as one kernel grid launch | (earlier) |
+| **v4** | Tiled GEMM: tail Linear weights stored transposed in the blob, kernel loads coalesced (warp lanes read 32 adjacent floats per inner step) | `670bb258e` |
 
 ## Throughput (`llama-bench`, median of 2 runs)
 
@@ -21,12 +22,33 @@
 | Vanilla                    | 1238.85 | 48.66 | 2800 |  2 | n/a |
 | BVH v1 (cross-backend bug) | 1173.78 | 32.46 | 7090 | 31 | 209 MiB |
 | BVH v2 (shared buft)       | 1267.98 | 34.01 | 6550 | 12 | 209 MiB |
-| **BVH v3 (fused CUDA op)** | **1220.27** | **35.28** | **3280** | **14** | **29 MiB** |
+| BVH v3 (fused CUDA op)     | 1220.27 | 35.28 | 3280 | 14 |  29 MiB |
+| **BVH v4 (tiled GEMM)**    | **1271.56** | **37.15** | **3280** | **14** | **29 MiB** |
 
 Highlights:
-- **Prefill is at parity with vanilla** (within 1.5% noise) on v2 and v3.
-- **Decode regression shrinks from −34.8% (v1) to −27.5% (v3).**
+- **Prefill now exceeds vanilla** (1271 vs 1238 = +2.6%, v4 with tiled GEMM).
+- **Decode regression shrinks from −34.8% (v1) to −23.6% (v4).**
 - **Graph node count halved** (6550 → 3280) and **weight blob 7× smaller** (209 MiB → 29 MiB) because the input_proj weights are now per-layer ggml tensors that share GPU memory with the rest of the model, not a duplicated blob entry.
+
+## Tiled GEMM (v4)
+
+The previous fused kernel (v3) used a per-thread serial inner-product over the original `(out, in)` weight layout. Within a warp at fixed `j`, the 32 lanes accessed `W[0..31][j]` — stride `in*4` bytes — which is **not coalesced**. Each of the 32 lanes triggered a separate memory transaction.
+
+v4 stores all tail Linear weights **transposed** to `(in, out)` row-major in the weight blob. The kernel now reads `W_t[j*out + 0..31]` per warp per inner step — 32 adjacent floats — which coalesces into one 128-byte memory transaction. Same math, ~32× fewer memory transactions for matmul-bound stages.
+
+What was transposed at pack time (`load_packed_to_buft` in `bvh_router_runtime.cpp`):
+- per-level `to_3d`, `feature_net.0`, `feature_net.2`, `route_head`
+- `expert_head.0`, `expert_head.2`
+- `spectral_encoder.0`, `spectral_encoder.2`
+- `prismatic_refraction.W_dispersion`
+- `spectral_gate`
+
+Untouched (already optimal layout, or not a Linear matmul):
+- `centers` (per-leaf 3D positions, accessed column-wise by k)
+- `log_radii`, all biases, `post_routing_norm` gain
+- `input_proj` weights (separate per-layer ggml tensors that go through `ggml_mul_mat` → cuBLAS)
+
+PPL is **bit-for-bit identical** between v3 and v4 (17241.96): the math is preserved exactly; only the memory layout changed.
 
 ## How v3 fuses the kernel
 
@@ -72,11 +94,13 @@ The kernel matches the PyTorch reference within FP32 noise (the cuBLAS input_pro
 
 Both PPL numbers remain anomalously high (~22 k vanilla, ~17 k BVH) because the GGUF is the **instruction-tuned** Gemma 4 variant and we evaluate on raw wikitext (out-of-distribution). The PyTorch base-model reference is ~12. To validate the +1 % parity claim cleanly, we'd need a base-model GGUF or chat-formatted eval text.
 
-## Why decode is still −27%
+## Why decode is still −24%
 
-At `-ngl 25` the experts of layers 25-29 live on CPU. Each of those layers introduces a CPU↔GPU split, so the bs=1 graph has 14 splits vs vanilla's 2. Each split breaks CUDA-graph capture and forces a host sync. The BVH op itself adds another ~4 µs/layer on top.
+At `-ngl 25` the experts of layers 25-29 live on CPU. Each of those layers introduces a CPU↔GPU split, so the bs=1 graph has 14 splits vs vanilla's 2. Each split breaks CUDA-graph capture and forces a host sync. v4's tiled GEMM closes the matmul-throughput gap, but the remaining decode cost is **launch and sync overhead**, not arithmetic.
 
-To close this gap further: either (a) full GPU offload (which OOMs without 4-bit experts), or (b) a properly tiled GEMM inside the fused kernel so the tail doesn't lean on naive thread-per-output matmul.
+The two structural levers left:
+1. **Full GPU offload.** No CPU expert layers, no extra splits — but the model OOMs at `-ngl 99` without 4-bit experts. Coupling BVH with the SpectralAI 4-bit-experts deployment would address this.
+2. **Multi-block-per-token kernel.** Currently 1 block of 256 threads handles each token at decode, leaving 59 of 60 SMs idle. Splitting work into one block per output tile (e.g. 8 blocks per layer × 30 layers = 240 blocks per token) would fill the GPU but adds inter-block synchronization complexity.
 
 ## Status
 
